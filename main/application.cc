@@ -465,15 +465,17 @@ void Application::Start() {
     } else {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using default MQTT");
         // 使用默认MQTT配置
-        Settings settings("mqtt", true);
-        if (!settings.HasKey("broker")) {
-            // 设置默认MQTT配置
-            settings.SetString("broker", "mqtt.tenclass.net");
-            settings.SetInt("port", 1883);
-            settings.SetString("username", "xiaozhi");
-            settings.SetString("password", "xiaozhi123");
-            settings.SetString("client_id", "");
-            ESP_LOGI(TAG, "Set default MQTT configuration");
+        {
+            Settings settings("mqtt", true);
+            if (!settings.HasKey("broker")) {
+                // 设置默认MQTT配置
+                settings.SetString("broker", "mqtt.tenclass.net");
+                settings.SetInt("port", 1883);
+                settings.SetString("username", "xiaozhi");
+                settings.SetString("password", "xiaozhi123");
+                settings.SetString("client_id", "");
+                ESP_LOGI(TAG, "Set default MQTT configuration");
+            }
         }
         protocol_ = std::make_unique<MqttProtocol>();   //默认使用 mqtt 协议
     }
