@@ -77,11 +77,11 @@ Application::~Application() {
 
 //=========== 3、检查新版本 =============
 void Application::CheckNewVersion() {
-    // // 禁用OTA功能，直接跳过版本检查 ******************************************
-    // ESP_LOGI(TAG, "OTA disabled, skipping version check");
-    // xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
-    // return;
-    // // **********************************************************************
+    // 禁用OTA功能，直接跳过版本检查 ******************************************
+    ESP_LOGI(TAG, "OTA disabled, skipping version check");
+    xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+    return;
+    // **********************************************************************
 
     const int MAX_RETRY = 10;
     int retry_count = 0;
