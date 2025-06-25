@@ -1,57 +1,12 @@
 {
-  "name": "My Board",
-  "description": "Custom board with ST7789 display and ES8311 audio codec",
-  "version": "1.0.0",
-  "target": "esp32",
-  "features": {
-    "display": {
-      "type": "st7789",
-      "resolution": "240x240",
-      "interface": "spi"
-    },
-    "audio": {
-      "codec": "es8311",
-      "mode": "duplex",
-      "input_sample_rate": 16000,
-      "output_sample_rate": 24000
-    },
-    "wifi": true,
-    "bluetooth": false,
-    "led": true,
-    "button": true,
-    "backlight": true
-  },
-  "pins": {
-    "audio": {
-      "mclk": 0,
-      "bclk": 1,
-      "ws": 2,
-      "dout": 3,
-      "din": 4,
-      "i2c_sda": 5,
-      "i2c_scl": 6,
-      "pa_enable": 7
-    },
-    "display": {
-      "mosi": 10,
-      "clk": 11,
-      "dc": 12,
-      "rst": 13,
-      "cs": 14,
-      "backlight": 15
-    },
-    "control": {
-      "led": 8,
-      "boot_button": 9
-    }
-  },
-  "build_config": {
-    "sdkconfig_defaults": {
-      "CONFIG_ESP32_DEFAULT_CPU_FREQ_240": "y",
-      "CONFIG_FREERTOS_HZ": "1000",
-      "CONFIG_ESPTOOLPY_FLASHMODE_QIO": "y",
-      "CONFIG_ESPTOOLPY_FLASHFREQ_80M": "y",
-      "CONFIG_ESPTOOLPY_FLASHSIZE_4MB": "y"
-    }
-  }
-} 
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "bread-my-board",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_8M.csv\""
+            ]
+        }
+    ]
+}
