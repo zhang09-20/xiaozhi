@@ -72,6 +72,13 @@ Http* Ota::SetupHttp() {
 }
 
 bool Ota::CheckVersion() {
+
+    // 禁用OTA功能，直接返回成功 *********************************************
+    ESP_LOGI(TAG, "OTA disabled, skipping version check");
+    return true;
+    // **********************************************************************
+
+    
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
 
