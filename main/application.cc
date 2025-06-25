@@ -77,11 +77,11 @@ Application::~Application() {
 
 //=========== 3、检查新版本 =============
 void Application::CheckNewVersion() {
-    // 禁用OTA功能，直接跳过版本检查 ******************************************
-    ESP_LOGI(TAG, "OTA disabled, skipping version check");
-    xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
-    return;
-    // **********************************************************************
+    // // 禁用OTA功能，直接跳过版本检查 ******************************************
+    // ESP_LOGI(TAG, "OTA disabled, skipping version check");
+    // xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+    // return;
+    // // **********************************************************************
 
     const int MAX_RETRY = 10;
     int retry_count = 0;
@@ -463,7 +463,18 @@ void Application::Start() {
     } else if (ota_.HasWebsocketConfig()) {
         protocol_ = std::make_unique<WebsocketProtocol>();  //使用 websocket 协议
     } else {
-        ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
+        ESP_LOGW(TAG, "No protocol specified in the OTA config, using default MQTT");
+        // 使用默认MQTT配置
+        Settings settings("mqtt", true);
+        if (!settings.HasKey("broker")) {
+            // 设置默认MQTT配置
+            settings.SetString("broker", "mqtt.tenclass.net");
+            settings.SetInt("port", 1883);
+            settings.SetString("username", "xiaozhi");
+            settings.SetString("password", "xiaozhi123");
+            settings.SetString("client_id", "");
+            ESP_LOGI(TAG, "Set default MQTT configuration");
+        }
         protocol_ = std::make_unique<MqttProtocol>();   //默认使用 mqtt 协议
     }
 
@@ -716,7 +727,7 @@ void Application::OnClockTimer() {
             if (device_state_ == kDeviceStateIdle) {
                 Schedule([this]() {
                     // Set status to clock "HH:MM"
-                    //获取当前时间并格式化为  “HH：MM” 格式
+                    //获取当前时间并格式化为  "HH：MM" 格式
                     time_t now = time(NULL);
                     char time_str[64];
                     strftime(time_str, sizeof(time_str), "%H:%M  ", localtime(&now));

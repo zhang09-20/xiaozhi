@@ -72,24 +72,32 @@ Http* Ota::SetupHttp() {
 }
 
 bool Ota::CheckVersion() {
-
-    // 禁用OTA功能，直接返回成功 *********************************************
-    ESP_LOGI(TAG, "OTA disabled, skipping version check");
-    return true;
-    // **********************************************************************
-
+    // 禁用OTA版本检查，但保留服务器配置获取功能 *********************************************
+    ESP_LOGI(TAG, "OTA version check disabled, but keeping server config retrieval");
     
+    // 设置默认配置，避免使用空的URL
+    if (check_version_url_.empty()) {
+        check_version_url_ = CONFIG_OTA_URL;
+    }
+    
+    // 如果URL仍然为空或太短，使用默认MQTT配置
+    if (check_version_url_.length() < 10) {
+        ESP_LOGW(TAG, "OTA URL not set, using default MQTT configuration");
+        has_mqtt_config_ = true;
+        has_websocket_config_ = false;
+        has_new_version_ = false;
+        has_activation_code_ = false;
+        has_activation_challenge_ = false;
+        return true;
+    }
+    
+    // 继续执行服务器配置获取，但跳过版本检查
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
 
     // Check if there is a new firmware version available
     current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
-
-    if (check_version_url_.length() < 10) {
-        ESP_LOGE(TAG, "Check version URL is not properly set");
-        return false;
-    }
 
     auto http = SetupHttp();
 
@@ -98,7 +106,13 @@ bool Ota::CheckVersion() {
     if (!http->Open(method, check_version_url_, data)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         delete http;
-        return false;
+        // 连接失败时使用默认配置
+        has_mqtt_config_ = true;
+        has_websocket_config_ = false;
+        has_new_version_ = false;
+        has_activation_code_ = false;
+        has_activation_challenge_ = false;
+        return true;
     }
 
     data = http->GetBody();
@@ -111,7 +125,13 @@ bool Ota::CheckVersion() {
     cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
-        return false;
+        // 解析失败时使用默认配置
+        has_mqtt_config_ = true;
+        has_websocket_config_ = false;
+        has_new_version_ = false;
+        has_activation_code_ = false;
+        has_activation_challenge_ = false;
+        return true;
     }
 
     has_activation_code_ = false;
@@ -197,7 +217,12 @@ bool Ota::CheckVersion() {
         ESP_LOGW(TAG, "No server_time section found!");
     }
 
+    // 禁用版本检查，始终设置为false
     has_new_version_ = false;
+    ESP_LOGI(TAG, "OTA version check disabled, skipping firmware upgrade");
+    
+    // 注释掉原来的版本检查代码
+    /*
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
     if (firmware != NULL) {
         cJSON *version = cJSON_GetObjectItem(firmware, "version");
@@ -226,9 +251,11 @@ bool Ota::CheckVersion() {
     } else {
         ESP_LOGW(TAG, "No firmware section found!");
     }
+    */
 
     cJSON_Delete(root);
     return true;
+    // **********************************************************************
 }
 
 void Ota::MarkCurrentVersionValid() {
