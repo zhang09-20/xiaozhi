@@ -77,11 +77,11 @@ Application::~Application() {
 
 //=========== 3、检查新版本 =============
 void Application::CheckNewVersion() {
-    // 禁用OTA功能，直接跳过版本检查 ******************************************
-    ESP_LOGI(TAG, "OTA disabled, skipping version check");
-    xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
-    return;
-    // **********************************************************************
+    // // 禁用OTA功能，直接跳过版本检查 ******************************************
+    // ESP_LOGI(TAG, "OTA disabled, skipping version check");
+    // xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+    // return;
+    // //
 
     const int MAX_RETRY = 10;
     int retry_count = 0;
@@ -92,86 +92,96 @@ void Application::CheckNewVersion() {
         auto display = Board::GetInstance().GetDisplay();
         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);    //显示正在检查新版本
         
-        //检查新版本，如果失败则进行重测
-        if (!ota_.CheckVersion()) {
-            retry_count++;
-            if (retry_count >= MAX_RETRY) {
-                ESP_LOGE(TAG, "Too many retries, exit version check");
-                return;
-            }
-
-            //显示检查失败提示，包含重试延迟时间和检查url
-            char buffer[128];
-            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, ota_.GetCheckVersionUrl().c_str());
-            Alert(Lang::Strings::ERROR, buffer, "sad", Lang::Sounds::P3_EXCLAMATION);
-
-            ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
-            
-            //等待重试延迟时间
-            for (int i = 0; i < retry_delay; i++) {
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                if (device_state_ == kDeviceStateIdle) {
-                    break;
-                }
-            }
-            retry_delay *= 2; // 每次重试后延迟时间翻倍
-            continue;
+        // 屏蔽版本检查，直接跳过 ******************************************
+        ESP_LOGI(TAG, "OTA version check disabled, skipping server connection");
+        // 设置默认配置，避免使用空的URL
+        if (ota_.GetCheckVersionUrl().empty()) {
+            ESP_LOGW(TAG, "OTA URL not set, using default configuration");
         }
-        retry_count = 0;
-        retry_delay = 10; // 重置重试延迟时间
+        // 直接标记版本检查完成，跳过服务器连接
+        ota_.MarkCurrentVersionValid();
+        // ********************************************************************
+        
+        //检查新版本，如果失败则进行重测
+        // if (!ota_.CheckVersion()) {
+        //     retry_count++;
+        //     if (retry_count >= MAX_RETRY) {
+        //         ESP_LOGE(TAG, "Too many retries, exit version check");
+        //         return;
+        //     }
+
+        //     //显示检查失败提示，包含重试延迟时间和检查url
+        //     char buffer[128];
+        //     snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, ota_.GetCheckVersionUrl().c_str());
+        //     Alert(Lang::Strings::ERROR, buffer, "sad", Lang::Sounds::P3_EXCLAMATION);
+
+        //     ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
+            
+        //     //等待重试延迟时间
+        //     for (int i = 0; i < retry_delay; i++) {
+        //         vTaskDelay(pdMS_TO_TICKS(1000));
+        //         if (device_state_ == kDeviceStateIdle) {
+        //             break;
+        //         }
+        //     }
+        //     retry_delay *= 2; // 每次重试后延迟时间翻倍
+        //     continue;
+        // }
+        // retry_count = 0;
+        // retry_delay = 10; // 重置重试延迟时间
 
         //如果发现新版本，执行升级程序
-        if (ota_.HasNewVersion()) {
-            Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
+//         if (ota_.HasNewVersion()) {
+//             Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
 
-            vTaskDelay(pdMS_TO_TICKS(3000));
+//             vTaskDelay(pdMS_TO_TICKS(3000));
 
-            SetDeviceState(kDeviceStateUpgrading);  //设置设备状态为升级中
+//             SetDeviceState(kDeviceStateUpgrading);  //设置设备状态为升级中
             
-            //显示升级信息
-            display->SetIcon(FONT_AWESOME_DOWNLOAD);
-            std::string message = std::string(Lang::Strings::NEW_VERSION) + ota_.GetFirmwareVersion();
-            display->SetChatMessage("system", message.c_str());
+//             //显示升级信息
+//             display->SetIcon(FONT_AWESOME_DOWNLOAD);
+//             std::string message = std::string(Lang::Strings::NEW_VERSION) + ota_.GetFirmwareVersion();
+//             display->SetChatMessage("system", message.c_str());
 
-            //准备升级环境
-            auto& board = Board::GetInstance();
-            board.SetPowerSaveMode(false);  //关闭省电模式
-#if CONFIG_USE_WAKE_WORD_DETECT
-            wake_word_detect_.StopDetection();
-#endif
-            // 预先关闭音频输出，避免升级过程有音频操作
-            //关闭音频相关功能
-            auto codec = board.GetAudioCodec();
-            codec->EnableInput(false);
-            codec->EnableOutput(false);
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                audio_decode_queue_.clear();    //清空音频解码队列
-            }
-            background_task_->WaitForCompletion();  //等待后台任务完成
-            delete background_task_;
-            background_task_ = nullptr;
-            vTaskDelay(pdMS_TO_TICKS(1000));
+//             //准备升级环境
+//             auto& board = Board::GetInstance();
+//             board.SetPowerSaveMode(false);  //关闭省电模式
+// #if CONFIG_USE_WAKE_WORD_DETECT
+//             wake_word_detect_.StopDetection();
+// #endif
+//             // 预先关闭音频输出，避免升级过程有音频操作
+//             //关闭音频相关功能
+//             auto codec = board.GetAudioCodec();
+//             codec->EnableInput(false);
+//             codec->EnableOutput(false);
+//             {
+//                 std::lock_guard<std::mutex> lock(mutex_);
+//                 audio_decode_queue_.clear();    //清空音频解码队列
+//             }
+//             background_task_->WaitForCompletion();  //等待后台任务完成
+//             delete background_task_;
+//             background_task_ = nullptr;
+//             vTaskDelay(pdMS_TO_TICKS(1000));
 
-            //开始升级，显示进度
-            ota_.StartUpgrade([display](int progress, size_t speed) {
-                char buffer[64];
-                snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                display->SetChatMessage("system", buffer);
-            });
+//             //开始升级，显示进度
+//             ota_.StartUpgrade([display](int progress, size_t speed) {
+//                 char buffer[64];
+//                 snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+//                 display->SetChatMessage("system", buffer);
+//             });
 
-            // If upgrade success, the device will reboot and never reach here
-            //如果升级失败，显示错误并重启
-            display->SetStatus(Lang::Strings::UPGRADE_FAILED);
-            ESP_LOGI(TAG, "Firmware upgrade failed...");
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            Reboot();
-            return;
-        }
+//             // If upgrade success, the device will reboot and never reach here
+//             //如果升级失败，显示错误并重启
+//             display->SetStatus(Lang::Strings::UPGRADE_FAILED);
+//             ESP_LOGI(TAG, "Firmware upgrade failed...");
+//             vTaskDelay(pdMS_TO_TICKS(3000));
+//             Reboot();
+//             return;
+//         }
 
         // No new version, mark the current version as valid
         //没有新版本，标记当前版本为有效
-        ota_.MarkCurrentVersionValid();
+        // ota_.MarkCurrentVersionValid();  // 已经在上面调用了
         if (!ota_.HasActivationCode() && !ota_.HasActivationChallenge()) {
             xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
             // Exit the loop if done checking new version
@@ -465,18 +475,16 @@ void Application::Start() {
     } else {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using default MQTT");
         // 使用默认MQTT配置
-        {
-            Settings settings("mqtt", true);
-            if (!settings.HasKey("broker")) {
-                // 设置默认MQTT配置
-                settings.SetString("broker", "mqtt.tenclass.net");
-                settings.SetInt("port", 1883);
-                settings.SetString("username", "xiaozhi");
-                settings.SetString("password", "xiaozhi123");
-                settings.SetString("client_id", "");
-                ESP_LOGI(TAG, "Set default MQTT configuration");
-            }
-        }
+        Settings settings("mqtt", true);
+        // if (!settings.HasKey("broker")) {
+        //     // 设置默认MQTT配置
+        //     settings.SetString("broker", "mqtt.tenclass.net");
+        //     settings.SetInt("port", 1883);
+        //     settings.SetString("username", "xiaozhi");
+        //     settings.SetString("password", "xiaozhi123");
+        //     settings.SetString("client_id", "");
+        //     ESP_LOGI(TAG, "Set default MQTT configuration");
+        // }
         protocol_ = std::make_unique<MqttProtocol>();   //默认使用 mqtt 协议
     }
 
