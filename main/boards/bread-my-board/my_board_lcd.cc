@@ -16,46 +16,9 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 
-#if defined(LCD_TYPE_ILI9341_SERIAL)
-#include "esp_lcd_ili9341.h"
-#endif
-
-#if defined(LCD_TYPE_GC9A01_SERIAL)
-#include "esp_lcd_gc9a01.h"
-static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
-    //  {cmd, { data }, data_size, delay_ms}
-    {0xfe, (uint8_t[]){0x00}, 0, 0},
-    {0xef, (uint8_t[]){0x00}, 0, 0},
-    {0xb0, (uint8_t[]){0xc0}, 1, 0},
-    {0xb1, (uint8_t[]){0x80}, 1, 0},
-    {0xb2, (uint8_t[]){0x27}, 1, 0},
-    {0xb3, (uint8_t[]){0x13}, 1, 0},
-    {0xb6, (uint8_t[]){0x19}, 1, 0},
-    {0xb7, (uint8_t[]){0x05}, 1, 0},
-    {0xac, (uint8_t[]){0xc8}, 1, 0},
-    {0xab, (uint8_t[]){0x0f}, 1, 0},
-    {0x3a, (uint8_t[]){0x05}, 1, 0},
-    {0xb4, (uint8_t[]){0x04}, 1, 0},
-    {0xa8, (uint8_t[]){0x08}, 1, 0},
-    {0xb8, (uint8_t[]){0x08}, 1, 0},
-    {0xea, (uint8_t[]){0x02}, 1, 0},
-    {0xe8, (uint8_t[]){0x2A}, 1, 0},
-    {0xe9, (uint8_t[]){0x47}, 1, 0},
-    {0xe7, (uint8_t[]){0x5f}, 1, 0},
-    {0xc6, (uint8_t[]){0x21}, 1, 0},
-    {0xc7, (uint8_t[]){0x15}, 1, 0},
-    {0xf0,
-    (uint8_t[]){0x1D, 0x38, 0x09, 0x4D, 0x92, 0x2F, 0x35, 0x52, 0x1E, 0x0C,
-                0x04, 0x12, 0x14, 0x1f},
-    14, 0},
-    {0xf1,
-    (uint8_t[]){0x16, 0x40, 0x1C, 0x54, 0xA9, 0x2D, 0x2E, 0x56, 0x10, 0x0D,
-                0x0C, 0x1A, 0x14, 0x1E},
-    14, 0},
-    {0xf4, (uint8_t[]){0x00, 0x00, 0xFF}, 3, 0},
-    {0xba, (uint8_t[]){0xFF, 0xFF}, 2, 0},
-};
-#endif
+// *******************************************************
+#include "audio_codecs/es8311_audio_codec.h"
+    // ... 其他 include
  
 #define TAG "CompactWifiBoardLCD"
 
@@ -189,6 +152,45 @@ public:
 #endif
         return &audio_codec;
     }
+
+
+    // virtual AudioCodec* GetAudioCodec() override {
+    //     // 1. 初始化 I2C 总线（如有需要，通常在板子构造函数里做）
+    //     static i2c_master_bus_handle_t codec_i2c_bus = nullptr;
+    //     if (!codec_i2c_bus) {
+    //         i2c_master_bus_config_t i2c_bus_cfg = {
+    //             .i2c_port = I2C_NUM_0,
+    //             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+    //             .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
+    //             .clk_source = I2C_CLK_SRC_DEFAULT,
+    //             .glitch_ignore_cnt = 7,
+    //             .intr_priority = 0,
+    //             .trans_queue_depth = 0,
+    //             .flags = {
+    //                 .enable_internal_pullup = 1,
+    //             },
+    //         };
+    //         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus));
+    //     }
+
+    //     // 2. 实例化 ES8311 编解码器
+    //     static Es8311AudioCodec audio_codec(
+    //         codec_i2c_bus,                // I2C 句柄
+    //         I2C_NUM_0,                    // I2C 端口号
+    //         AUDIO_INPUT_SAMPLE_RATE,      // 输入采样率
+    //         AUDIO_OUTPUT_SAMPLE_RATE,     // 输出采样率
+    //         AUDIO_CODEC_I2C_MCLK_PIN,     // MCLK
+    //         AUDIO_CODEC_I2S_SCLK_PIN,     // BCLK (SCLK)
+    //         AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
+    //         AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
+    //         AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
+    //         GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
+    //         AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
+    //         // , true/false                // use_mclk, 可选参数
+    //     );
+    //     return &audio_codec;
+    // }
+    
 
     //获取 液晶屏
     virtual Display* GetDisplay() override {
