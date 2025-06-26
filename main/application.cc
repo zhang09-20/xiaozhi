@@ -92,33 +92,33 @@ void Application::CheckNewVersion() {
         auto display = Board::GetInstance().GetDisplay();
         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);    //显示正在检查新版本
         
-        //检查新版本，如果失败则进行重测
-        if (!ota_.CheckVersion()) {
-            retry_count++;
-            if (retry_count >= MAX_RETRY) {
-                ESP_LOGE(TAG, "Too many retries, exit version check");
-                return;
-            }
+        // //检查新版本，如果失败则进行重测
+        // if (!ota_.CheckVersion()) {
+        //     retry_count++;
+        //     if (retry_count >= MAX_RETRY) {
+        //         ESP_LOGE(TAG, "Too many retries, exit version check");
+        //         return;
+        //     }
 
-            //显示检查失败提示，包含重试延迟时间和检查url
-            char buffer[128];
-            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, ota_.GetCheckVersionUrl().c_str());
-            Alert(Lang::Strings::ERROR, buffer, "sad", Lang::Sounds::P3_EXCLAMATION);
+        //     //显示检查失败提示，包含重试延迟时间和检查url
+        //     char buffer[128];
+        //     snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, ota_.GetCheckVersionUrl().c_str());
+        //     Alert(Lang::Strings::ERROR, buffer, "sad", Lang::Sounds::P3_EXCLAMATION);
 
-            ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
+        //     ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
             
-            //等待重试延迟时间
-            for (int i = 0; i < retry_delay; i++) {
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                if (device_state_ == kDeviceStateIdle) {
-                    break;
-                }
-            }
-            retry_delay *= 2; // 每次重试后延迟时间翻倍
-            continue;
-        }
-        retry_count = 0;
-        retry_delay = 10; // 重置重试延迟时间
+        //     //等待重试延迟时间
+        //     for (int i = 0; i < retry_delay; i++) {
+        //         vTaskDelay(pdMS_TO_TICKS(1000));
+        //         if (device_state_ == kDeviceStateIdle) {
+        //             break;
+        //         }
+        //     }
+        //     retry_delay *= 2; // 每次重试后延迟时间翻倍
+        //     continue;
+        // }
+        // retry_count = 0;
+        // retry_delay = 10; // 重置重试延迟时间
 
         //如果发现新版本，执行升级程序
 //         if (ota_.HasNewVersion()) {
@@ -172,11 +172,11 @@ void Application::CheckNewVersion() {
         // No new version, mark the current version as valid
         //没有新版本，标记当前版本为有效
         ota_.MarkCurrentVersionValid();
-        if (!ota_.HasActivationCode() && !ota_.HasActivationChallenge()) {
-            xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
-            // Exit the loop if done checking new version
-            break;
-        }
+        // if (!ota_.HasActivationCode() && !ota_.HasActivationChallenge()) {
+        //     xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+        //     // Exit the loop if done checking new version
+        //     break;
+        // }
 
         //处理设备激活流程
         display->SetStatus(Lang::Strings::ACTIVATION);
@@ -465,7 +465,7 @@ void Application::Start() {
     } else {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using default MQTT");
         // 使用默认MQTT配置
-        Settings settings("mqtt", true);
+        //Settings settings("mqtt", true);
         // if (!settings.HasKey("broker")) {
         //     // 设置默认MQTT配置
         //     settings.SetString("broker", "mqtt.tenclass.net");
