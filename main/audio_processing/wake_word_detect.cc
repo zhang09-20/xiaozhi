@@ -64,7 +64,8 @@ void WakeWordDetect::Initialize(AudioCodec* codec) {
     afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
-    afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
+    //afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;  // ******************************
+    afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_INTERNAL;
     
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
@@ -160,7 +161,8 @@ void WakeWordDetect::EncodeWakeWordData() {
     wake_word_opus_.clear();
     // 如果唤醒词编码任务栈为空，则分配内存
     if (wake_word_encode_task_stack_ == nullptr) {
-        wake_word_encode_task_stack_ = (StackType_t*)heap_caps_malloc(4096 * 8, MALLOC_CAP_SPIRAM);
+        //wake_word_encode_task_stack_ = (StackType_t*)heap_caps_malloc(4096 * 8, MALLOC_CAP_SPIRAM);   // ******************************
+        wake_word_encode_task_stack_ = (StackType_t*)heap_caps_malloc(4096 * 4, MALLOC_CAP_INTERNAL);
     }
     // 创建唤醒词编码任务
     wake_word_encode_task_ = xTaskCreateStatic([](void* arg) {
