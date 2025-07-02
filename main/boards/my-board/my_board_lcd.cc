@@ -20,7 +20,7 @@
 #include "audio_codecs/es8311_audio_codec.h"
     // ... 其他 include
  
-#define TAG "CompactWifiBoardLCD"
+#define TAG "my_board_LCD"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);

@@ -49,6 +49,7 @@ struct ThemeColors {
 };
 
 // Define dark theme colors
+// 定义 深色主题 颜色
 static const ThemeColors DARK_THEME = {
     .background = DARK_BACKGROUND_COLOR,
     .text = DARK_TEXT_COLOR,
@@ -62,6 +63,7 @@ static const ThemeColors DARK_THEME = {
 };
 
 // Define light theme colors
+// 定义 浅色主题 颜色
 static const ThemeColors LIGHT_THEME = {
     .background = LIGHT_BACKGROUND_COLOR,
     .text = LIGHT_TEXT_COLOR,
@@ -75,11 +77,14 @@ static const ThemeColors LIGHT_THEME = {
 };
 
 // Current theme - initialize based on default config
+// 当前主题 初始化为 浅色主题
 static ThemeColors current_theme = LIGHT_THEME;
 
-
+// 声明字体
 LV_FONT_DECLARE(font_awesome_30_4);
 
+// 构造函数
+// 初始化 SPI LCD 屏幕，并设置为白色    当前使用 / 大多数情况默认使用
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
                            DisplayFonts fonts)
@@ -153,7 +158,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     SetupUI();
 }
 
-// RGB LCD实现
+// RGB LCD实现    多为大屏幕使用
 RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y,
                            bool mirror_x, bool mirror_y, bool swap_xy,
@@ -182,7 +187,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .buffer_size = static_cast<uint32_t>(width_ * 20),
-        .double_buffer = true,
+        .double_buffer = false,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
         .rotation = {
@@ -225,6 +230,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     SetupUI();
 }
 
+//MIPI LCD 实现    多为移动端使用
 MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                             int width, int height,  int offset_x, int offset_y,
                             bool mirror_x, bool mirror_y, bool swap_xy,
@@ -249,7 +255,7 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
             .io_handle = panel_io,
             .panel_handle = panel,
             .control_handle = nullptr,
-            .buffer_size = static_cast<uint32_t>(width_ * 50),
+            .buffer_size = static_cast<uint32_t>(width_ * 30),
             .double_buffer = false,
             .hres = static_cast<uint32_t>(width_),
             .vres = static_cast<uint32_t>(height_),

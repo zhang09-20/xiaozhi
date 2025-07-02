@@ -100,10 +100,12 @@ void Display::SetStatus(const char* status) {
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);   //设置状态标签的隐藏标志
 }
 
+// ========================= 1、显示通知 =========================
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
     ShowNotification(notification.c_str(), duration_ms);
 }
 
+// ========================= 2、显示通知 =========================
 void Display::ShowNotification(const char* notification, int duration_ms) {
     DisplayLockGuard lock(this);
     if (notification_label_ == nullptr) {
@@ -117,6 +119,7 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
+// ========================= 3、更新显示 =========================
 void Display::Update() {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
@@ -199,7 +202,7 @@ void Display::Update() {
     esp_pm_lock_release(pm_lock_);
 }
 
-
+// ========================= 4、设置表情 =========================
 void Display::SetEmotion(const char* emotion) {
     struct Emotion {
         const char* icon;
@@ -248,6 +251,7 @@ void Display::SetEmotion(const char* emotion) {
     }
 }
 
+// ========================= 5、设置图标 =========================
 void Display::SetIcon(const char* icon) {
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
@@ -256,6 +260,7 @@ void Display::SetIcon(const char* icon) {
     lv_label_set_text(emotion_label_, icon);
 }
 
+// ========================= 6、设置聊天消息 =========================
 void Display::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
@@ -264,6 +269,7 @@ void Display::SetChatMessage(const char* role, const char* content) {
     lv_label_set_text(chat_message_label_, content);
 }
 
+// ========================= 7、设置主题 =========================
 void Display::SetTheme(const std::string& theme_name) {
     current_theme_name_ = theme_name;
     Settings settings("display", true);
