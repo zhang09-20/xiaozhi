@@ -25,11 +25,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
 
 set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
 
-#暂时屏蔽camera相关代码，老报错，等待支持
-if(USE_CAMERA)
-    list(APPEND SRCS esp32_camera.cc)
-endif()
-######################################
+
 
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
@@ -39,6 +35,11 @@ list(APPEND SOURCES ${IOT_SOURCES})
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+
+
+# *********** 暂时移除 esp32_camera.cc ********************************
+list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc")
+
 
 # 根据 BOARD_TYPE 配置添加对应的板级文件
 if(CONFIG_BOARD_MY_BOARD)
@@ -181,6 +182,9 @@ file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
+
+
+
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
