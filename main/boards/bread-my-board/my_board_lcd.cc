@@ -26,7 +26,7 @@ LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 // 面板板，wifi板，lcd板，紧凑型
-class CompactWifiBoardLCD : public WifiBoard {
+class MyWifiBoardLCD : public WifiBoard {
 private:
  
     Button boot_button_;
@@ -123,7 +123,8 @@ private:
 
 public:
     //紧凑型 wifi 板，lcd板，构造函数
-    CompactWifiBoardLCD() :
+    MyWifiBoardLCD() :
+        ESP_LOGI(TAG, "my_board_lcd constructor");
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
@@ -133,7 +134,6 @@ public:
             GetBacklight()->RestoreBrightness();
         }
         
-        ESP_LOGI(TAG, "my_board_lcd constructor");
     }
 
     //获取 led 灯
@@ -213,4 +213,4 @@ public:
     }
 };
 
-DECLARE_BOARD(CompactWifiBoardLCD);
+DECLARE_BOARD(MyWifiBoardLCD);

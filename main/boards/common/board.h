@@ -13,6 +13,7 @@
 void* create_board();
 class AudioCodec;
 class Display;
+
 class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
