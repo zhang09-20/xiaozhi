@@ -15,17 +15,20 @@ public:
     virtual ~NoAudioCodec();
 };
 
+
 class NoAudioCodecDuplex : public NoAudioCodec {
 public:
     NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, 
                     gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 };
 
+
 class ATK_NoAudioCodecDuplex : public NoAudioCodec {
 public:
     ATK_NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, 
                         gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 };
+
 
 // 获取单工，无编、解码芯片
 class NoAudioCodecSimplex : public NoAudioCodec {
@@ -39,6 +42,7 @@ public:
                         i2s_std_slot_mask_t spk_slot_mask, gpio_num_t mic_sck, gpio_num_t mic_ws, 
                         gpio_num_t mic_din, i2s_std_slot_mask_t mic_slot_mask);
 };
+
 
 class NoAudioCodecSimplexPdm : public NoAudioCodec {
 public:

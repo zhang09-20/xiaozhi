@@ -150,7 +150,8 @@ public:
 //     virtual AudioCodec* GetAudioCodec() override {
 // #ifdef AUDIO_I2S_METHOD_SIMPLEX
 //         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-//             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
+//             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
+//             AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
 // #else
 //         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
 //             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
@@ -176,7 +177,6 @@ public:
                 },
             };
             ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus));
-            ESP_LOGI(TAG, "I2C bus initialized");   // ********************************************
         }
 
         // 2. 实例化 ES8311 编解码器
@@ -192,7 +192,7 @@ public:
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
             GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
             AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
-            // , true/false                // use_mclk, 可选参数
+            true   //false                // use_mclk, 可选参数
         );
         return &audio_codec;
     }
