@@ -191,7 +191,7 @@ public:
             AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
             GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
-            AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
+            AUDIO_CODEC_ES8311_ADDR,      // ES8311 I2C 地址
             true   //false                // use_mclk, 可选参数
         );
         return &audio_codec;
