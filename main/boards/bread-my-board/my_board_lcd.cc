@@ -133,6 +133,7 @@ public:
             GetBacklight()->RestoreBrightness();
         }
         
+        ESP_LOGI(TAG, "my_board_lcd constructor");
     }
 
     //获取 led 灯
