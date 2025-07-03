@@ -6,17 +6,18 @@
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-// // ES8311 引脚定义 ************************************************
-// #define AUDIO_CODEC_ES8311_ADDR 0x10
-// #define AUDIO_CODEC_I2C_SDA_PIN     GPIO_NUM_1
-// #define AUDIO_CODEC_I2C_SDC_PIN     GPIO_NUM_2
-// #define AUDIO_CODEC_I2C_MCLK_PIN    GPIO_NUM_42
+// ES8311 引脚定义 ************************************************
+#define AUDIO_CODEC_ES8311_ADDR 0x10
+#define AUDIO_CODEC_I2C_SDA_PIN     GPIO_NUM_1
+#define AUDIO_CODEC_I2C_SDC_PIN     GPIO_NUM_2
 
-// #define AUDIO_CODEC_I2S_ASDOUT_PIN  GPIO_NUM_38
-// #define AUDIO_CODEC_I2S_DSDIN_PIN   GPIO_NUM_39
-// #define AUDIO_CODEC_I2S_SCLK_PIN    GPIO_NUM_40
-// #define AUDIO_CODEC_I2S_LRCK_PIN    GPIO_NUM_41
-// // ***************************************************************
+#define AUDIO_CODEC_I2C_MCLK_PIN    GPIO_NUM_42
+
+#define AUDIO_CODEC_I2S_ASDOUT_PIN  GPIO_NUM_38
+#define AUDIO_CODEC_I2S_DSDIN_PIN   GPIO_NUM_39
+#define AUDIO_CODEC_I2S_SCLK_PIN    GPIO_NUM_40
+#define AUDIO_CODEC_I2S_LRCK_PIN    GPIO_NUM_41
+// ***************************************************************
 
 
 

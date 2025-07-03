@@ -4,38 +4,42 @@
 
 static const char TAG[] = "Es8311AudioCodec";
 
-Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-    gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk) {
-    duplex_ = true; // 是否双工
-    input_reference_ = false; // 是否使用参考输入，实现回声消除
-    input_channels_ = 1; // 输入通道数
-    input_sample_rate_ = input_sample_rate;
-    output_sample_rate_ = output_sample_rate;
-    pa_pin_ = pa_pin;
-    CreateDuplexChannels(mclk, bclk, ws, dout, din);
+Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, 
+                                int input_sample_rate, int output_sample_rate,
+                                gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, 
+                                gpio_num_t dout, gpio_num_t din, gpio_num_t pa_pin, 
+                                uint8_t es8311_addr, bool use_mclk)
+{
+    duplex_ = true;             // 是否双工
+    input_reference_ = false;   // 是否使用参考输入，实现回声消除 
+    input_channels_ = 1;        // 输入通道数
+    input_sample_rate_ = input_sample_rate;             // 输入采样率
+    output_sample_rate_ = output_sample_rate;           // 输出采样率
+    pa_pin_ = pa_pin;           // 功放引脚
+    CreateDuplexChannels(mclk, bclk, ws, dout, din);    // 创建双工通道
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
     audio_codec_i2s_cfg_t i2s_cfg = {
-        .port = I2S_NUM_0,
-        .rx_handle = rx_handle_,
-        .tx_handle = tx_handle_,
+        .port = I2S_NUM_0,          // 使用 I2S0 端口
+        .rx_handle = rx_handle_,    // 接收句柄
+        .tx_handle = tx_handle_,    // 发送句柄
     };
-    data_if_ = audio_codec_new_i2s_data(&i2s_cfg);
+    data_if_ = audio_codec_new_i2s_data(&i2s_cfg);  // 创建 I2S 数据接口 ==1
     assert(data_if_ != NULL);
 
-    // Output
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = i2c_port,
         .addr = es8311_addr,
         .bus_handle = i2c_master_handle,
     };
-    ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
+    ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);  // 创建 I2C 控制接口 ==2
     assert(ctrl_if_ != NULL);
 
-    gpio_if_ = audio_codec_new_gpio();
+    gpio_if_ = audio_codec_new_gpio();              // 创建 GPIO 接口    ==3
     assert(gpio_if_ != NULL);
 
+
+    // 创建 ES8311 音频芯片接口
     es8311_codec_cfg_t es8311_cfg = {};
     es8311_cfg.ctrl_if = ctrl_if_;
     es8311_cfg.gpio_if = gpio_if_;
@@ -74,6 +78,7 @@ Es8311AudioCodec::~Es8311AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
+// ====================== 创建双工通道 ===================================
 void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
     assert(input_sample_rate_ == output_sample_rate_);
 
@@ -125,16 +130,18 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
         }
     };
 
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));   // 初始化发送通道
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));   // 初始化接收通道
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
+// ====================== 设置输出音量 ===================================
 void Es8311AudioCodec::SetOutputVolume(int volume) {
     ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, volume));
     AudioCodec::SetOutputVolume(volume);
 }
 
+// ====================== 启用输入 =======================================
 void Es8311AudioCodec::EnableInput(bool enable) {
     if (enable == input_enabled_) {
         return;
@@ -155,6 +162,7 @@ void Es8311AudioCodec::EnableInput(bool enable) {
     AudioCodec::EnableInput(enable);
 }
 
+// ====================== 启用输出 =======================================
 void Es8311AudioCodec::EnableOutput(bool enable) {
     if (enable == output_enabled_) {
         return;
@@ -182,6 +190,7 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
     AudioCodec::EnableOutput(enable);
 }
 
+// ====================== 读取输入数据 ===================================
 int Es8311AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
@@ -189,6 +198,7 @@ int Es8311AudioCodec::Read(int16_t* dest, int samples) {
     return samples;
 }
 
+// ====================== 写入输出数据 ===================================
 int Es8311AudioCodec::Write(const int16_t* data, int samples) {
     if (output_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));

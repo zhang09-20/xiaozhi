@@ -185,7 +185,6 @@ list(APPEND SOURCES ${BOARD_SOURCES})
 
 
 
-
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
 else()
@@ -194,6 +193,7 @@ endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
 endif()
+
 
 # 根据Kconfig选择语言目录
 if(CONFIG_LANGUAGE_ZH_CN)
