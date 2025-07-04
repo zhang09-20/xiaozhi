@@ -149,108 +149,185 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
 
-    // 全局I2C总线句柄 *****************************************************
-    static i2c_master_bus_handle_t bus_handle = NULL;
+    // // 全局I2C总线句柄 *****************************************************
 
-    //初始化 i2c 总线
-    void InitializeI2c() {
-        // 新版I2C Master配置
-        i2c_master_bus_config_t i2c_mst_config = {
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .i2c_port = I2C_MASTER_NUM,
-            .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
-            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-            .glitch_ignore_cnt = 7,
-            .flags.enable_internal_pullup = true,
-        };
+    i2c_master_bus_handle_t i2c_bus_ = nullptr;  // 实例变量而非静态变量
+    
+    void InitializeMclk() {
+        ESP_LOGI(TAG, "开始配置MCLK...");
         
-        // 创建I2C Master总线
-        esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &bus_handle);
-        if (ret != ESP_OK) {
-            ESP_LOGE("I2C", "I2C总线创建失败: %s", esp_err_to_name(ret));
-            return ret;
-        }
+        gpio_num_t mclk_pin = AUDIO_CODEC_I2C_MCLK_PIN;
+        uint32_t freq = 24000000;  // 24MHz
         
-        // 配置MCLK引脚
-        gpio_config_t io_conf = {
-            .pin_bit_mask = (1ULL << AUDIO_CODEC_I2C_MCLK_PIN),
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE,
-        };
-        gpio_config(&io_conf);
-        
-        // 启动MCLK输出任务
-        xTaskCreate(mclk_task, "mclk_task", 2048, NULL, 5, NULL);
-        
-        ESP_LOGI("I2C", "I2C主机初始化成功");   
-
-        //========================= 输出 MCLK 信号 ====================================
-
-        ESP_LOGI("MCLK", "开始输出MCLK信号");
-        
-        // 使用硬件时钟输出代替软件模拟
-        // 配置MCLK为时钟输出
-        // 注意：ESP32-S3可以使用LEDC外设产生时钟信号
-        
-        // 配置LEDC定时器
         ledc_timer_config_t ledc_timer = {
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .duty_resolution = LEDC_TIMER_1_BIT, // 设置为1位分辨率，产生50%占空比
+            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .duty_resolution = LEDC_TIMER_1_BIT,
             .timer_num = LEDC_TIMER_0,
-            .freq_hz = 12000000, // 12MHz MCLK for ES8311
-            .clk_cfg = LEDC_AUTO_CLK,
+            .freq_hz = freq,
+            .clk_cfg = LEDC_AUTO_CLK
         };
         ledc_timer_config(&ledc_timer);
         
-        // 配置LEDC通道
         ledc_channel_config_t ledc_channel = {
-            .gpio_num = AUDIO_CODEC_I2C_MCLK_PIN,
-            .speed_mode = LEDC_LOW_SPEED_MODE,
+            .gpio_num = mclk_pin,
+            .speed_mode = LEDC_HIGH_SPEED_MODE,
             .channel = LEDC_CHANNEL_0,
             .timer_sel = LEDC_TIMER_0,
-            .duty = 1, // 50%占空比 (对于1位分辨率，值为1表示50%)
-            .hpoint = 0,
+            .duty = 1,  // 50%占空比
+            .hpoint = 0
         };
         ledc_channel_config(&ledc_channel);
         
-        ESP_LOGI("MCLK", "MCLK硬件时钟配置完成");
+        ESP_LOGI(TAG, "MCLK配置完成");
     }
-
-
-    // 扫描I2C总线上的所有设备
-    void i2c_scan_devices(void) {
-        ESP_LOGI("I2C", "开始扫描I2C设备...");
-        uint8_t devices_found = 0;
+    
+    void InitializeI2c() {
+        ESP_LOGI(TAG, "初始化I2C总线...");
         
-        for (uint8_t i = 1; i < 128; i++) {
-            // 直接使用i2c_master_probe函数检测设备
-            esp_err_t ret = i2c_master_probe(bus_handle, i, I2C_TIMEOUT_MS);
-            
-            if (ret == ESP_OK) {
-                ESP_LOGI("I2C", "检测到设备: 0x%02x", i);
-                devices_found++;
-                
-                // 如果是ES8311地址，特别标记
-                if (i == AUDIO_CODEC_ES8311_ADDR) {
-                    ESP_LOGI("I2C", "找到ES8311编解码器! (地址: 0x%02x)", i);
-                }
+        i2c_master_bus_config_t i2c_mst_config = {
+            .i2c_port = I2C_NUM_0,
+            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = true
             }
-            
-            // 添加短暂延时，避免I2C总线过载
-            vTaskDelay(pdMS_TO_TICKS(10));
+        };
+        
+        esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &i2c_bus_);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "I2C总线初始化失败: %s", esp_err_to_name(ret));
+            return;
+        }
+        
+        ESP_LOGI(TAG, "I2C总线初始化成功");
+        
+        // 扫描I2C设备
+        i2c_scan_devices();
+    }
+    
+    void i2c_scan_devices() {
+        ESP_LOGI(TAG, "开始扫描I2C设备...");
+        int devices_found = 0;
+        
+        for (uint8_t i = 0x03; i < 0x78; i++) {
+            esp_err_t ret = i2c_master_probe(i2c_bus_, i, I2C_TIMEOUT_MS);
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "找到I2C设备，地址: 0x%02x", i);
+                devices_found++;
+            }
         }
         
         if (devices_found == 0) {
-            ESP_LOGW("I2C", "未检测到任何I2C设备！请检查连接");
+            ESP_LOGW(TAG, "未检测到任何I2C设备！请检查连接");
         } else {
-            ESP_LOGI("I2C", "扫描完成, 共发现 %d 个设备", devices_found);
+            ESP_LOGI(TAG, "共发现 %d 个I2C设备", devices_found);
         }
     }
 
 
-    // ********************************************************************
+
+
+    // static i2c_master_bus_handle_t bus_handle = nullptr;
+
+    // //初始化 i2c 总线
+    // void InitializeI2c() {
+    //     // 新版I2C Master配置
+    //     i2c_master_bus_config_t i2c_mst_config = {
+    //         .clk_source = I2C_CLK_SRC_DEFAULT,
+    //         .i2c_port = I2C_MASTER_NUM,
+    //         .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
+    //         .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+    //         .glitch_ignore_cnt = 7,
+    //         .flags.enable_internal_pullup = true,
+    //     };
+        
+    //     // 创建I2C Master总线
+    //     esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &bus_handle);
+    //     if (ret != ESP_OK) {
+    //         ESP_LOGE("I2C", "I2C总线创建失败: %s", esp_err_to_name(ret));
+    //         //return ret;
+    //     }
+        
+    //     // 配置MCLK引脚
+    //     gpio_config_t io_conf = {
+    //         .pin_bit_mask = (1ULL << AUDIO_CODEC_I2C_MCLK_PIN),
+    //         .mode = GPIO_MODE_OUTPUT,
+    //         .pull_up_en = GPIO_PULLUP_DISABLE,
+    //         .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    //         .intr_type = GPIO_INTR_DISABLE,
+    //     };
+    //     gpio_config(&io_conf);
+        
+    //     ESP_LOGI("I2C", "I2C主机初始化成功");   
+
+    //     //========================= 输出 MCLK 信号 ====================================
+
+    //     ESP_LOGI("MCLK", "开始输出MCLK信号");
+        
+    //     // 使用硬件时钟输出代替软件模拟
+    //     // 配置MCLK为时钟输出
+    //     // 注意：ESP32-S3可以使用LEDC外设产生时钟信号
+        
+    //     // 配置LEDC定时器
+    //     ledc_timer_config_t ledc_timer = {
+    //         .speed_mode = LEDC_LOW_SPEED_MODE,
+    //         .duty_resolution = LEDC_TIMER_1_BIT, // 设置为1位分辨率，产生50%占空比
+    //         .timer_num = LEDC_TIMER_0,
+    //         .freq_hz = 12000000, // 12MHz MCLK for ES8311
+    //         .clk_cfg = LEDC_AUTO_CLK,
+    //     };
+    //     ledc_timer_config(&ledc_timer);
+        
+    //     // 配置LEDC通道
+    //     ledc_channel_config_t ledc_channel = {
+    //         .gpio_num = AUDIO_CODEC_I2C_MCLK_PIN,
+    //         .speed_mode = LEDC_LOW_SPEED_MODE,
+    //         .channel = LEDC_CHANNEL_0,
+    //         .timer_sel = LEDC_TIMER_0,
+    //         .duty = 1, // 50%占空比 (对于1位分辨率，值为1表示50%)
+    //         .hpoint = 0,
+    //     };
+    //     ledc_channel_config(&ledc_channel);
+        
+    //     ESP_LOGI("MCLK", "MCLK硬件时钟配置完成");
+    // }
+
+
+    // // 扫描I2C总线上的所有设备
+    // void i2c_scan_devices(void) {
+    //     ESP_LOGI("I2C", "开始扫描I2C设备...");
+    //     uint8_t devices_found = 0;
+        
+    //     for (uint8_t i = 1; i < 128; i++) {
+    //         // 直接使用i2c_master_probe函数检测设备
+    //         esp_err_t ret = i2c_master_probe(bus_handle, i, I2C_TIMEOUT_MS);
+            
+    //         if (ret == ESP_OK) {
+    //             ESP_LOGI("I2C", "检测到设备: 0x%02x", i);
+    //             devices_found++;
+                
+    //             // 如果是ES8311地址，特别标记
+    //             if (i == AUDIO_CODEC_ES8311_ADDR) {
+    //                 ESP_LOGI("I2C", "找到ES8311编解码器! (地址: 0x%02x)", i);
+    //             }
+    //         }
+            
+    //         // 添加短暂延时，避免I2C总线过载
+    //         vTaskDelay(pdMS_TO_TICKS(10));
+    //     }
+        
+    //     if (devices_found == 0) {
+    //         ESP_LOGW("I2C", "未检测到任何I2C设备！请检查连接");
+    //     } else {
+    //         ESP_LOGI("I2C", "扫描完成, 共发现 %d 个设备", devices_found);
+    //     }
+    // }
+
+    // // ********************************************************************
 
     //初始化 spi 总线
     void InitializeSpi() {
