@@ -430,20 +430,42 @@ public:
     void check_gpio_status() {
         ESP_LOGI(TAG, "检查GPIO 42状态...");
         
-        // 检查GPIO状态
-        gpio_config_t io_conf;
-        esp_err_t ret = gpio_get_config(GPIO_NUM_42, &io_conf);
+        // ESP-IDF没有直接的函数来获取GPIO配置
+        // 我们可以尝试读取GPIO的状态
+        int level = gpio_get_level(GPIO_NUM_42);
+        ESP_LOGI(TAG, "GPIO 42当前电平: %d", level);
         
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "GPIO 42配置: mode=%d, pull_up=%d, pull_down=%d, intr_type=%d", 
-                    io_conf.mode, io_conf.pull_up_en, io_conf.pull_down_en, io_conf.intr_type);
-        } else {
-            ESP_LOGI(TAG, "无法获取GPIO 42配置: %s", esp_err_to_name(ret));
-        }
-        
-        // 尝试重置GPIO
+        // 尝试重置GPIO以解除可能的冲突
         gpio_reset_pin(GPIO_NUM_42);
         ESP_LOGI(TAG, "已重置GPIO 42");
+        
+        // 配置为输入模式，检查是否有其他驱动干扰
+        gpio_config_t io_conf = {};
+        io_conf.pin_bit_mask = (1ULL << GPIO_NUM_42);
+        io_conf.mode = GPIO_MODE_INPUT;
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        io_conf.intr_type = GPIO_INTR_DISABLE;
+        
+        esp_err_t ret = gpio_config(&io_conf);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "无法配置GPIO 42为输入模式: %s", esp_err_to_name(ret));
+        } else {
+            // 读取GPIO状态，看是否被其他驱动控制
+            vTaskDelay(pdMS_TO_TICKS(10));  // 短暂延迟让配置生效
+            level = gpio_get_level(GPIO_NUM_42);
+            ESP_LOGI(TAG, "配置为输入后，GPIO 42电平: %d", level);
+        }
+        
+        // 尝试配置为输出模式
+        io_conf.mode = GPIO_MODE_OUTPUT;
+        ret = gpio_config(&io_conf);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "无法配置GPIO 42为输出模式: %s", esp_err_to_name(ret));
+            ESP_LOGI(TAG, "GPIO 42可能被其他驱动程序占用，尝试使用其他GPIO引脚");
+        } else {
+            ESP_LOGI(TAG, "GPIO 42可以被配置为输出模式");
+        }
     }
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
@@ -456,7 +478,7 @@ public:
         // ********************* i2c 总线初始化 ****************************
         check_gpio_status();
         vTaskDelay(pdMS_TO_TICKS(1000));
-        
+
         InitializeMclk();
         InitializeI2c();
         i2c_scan_devices();
