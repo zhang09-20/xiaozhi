@@ -7,7 +7,7 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 // ES8311 引脚定义 ************************************************
-#define AUDIO_CODEC_ES8311_ADDR 0x18
+#define AUDIO_CODEC_ES8311_ADDR     0x18
 #define AUDIO_CODEC_I2C_SDA_PIN     GPIO_NUM_1
 #define AUDIO_CODEC_I2C_SDC_PIN     GPIO_NUM_2
 
@@ -43,6 +43,7 @@
 #endif
 
 
+// 按键相关 引脚定义
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 #define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
@@ -50,6 +51,7 @@
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
 
 
+// ST7789 引脚定义
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_18
 
 #define DISPLAY_MOSI_PIN      GPIO_NUM_10
