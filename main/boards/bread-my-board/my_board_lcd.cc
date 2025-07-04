@@ -138,7 +138,7 @@
 
 
 
-#define TAG "my_board_LCD"
+#define TAG "my_board_lcd"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
@@ -161,7 +161,7 @@ private:
         uint32_t freq = 24000000;  // 24MHz
         
         ledc_timer_config_t ledc_timer = {
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .duty_resolution = LEDC_TIMER_1_BIT,
             .timer_num = LEDC_TIMER_0,
             .freq_hz = freq,
@@ -171,7 +171,7 @@ private:
         
         ledc_channel_config_t ledc_channel = {
             .gpio_num = mclk_pin,
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .channel = LEDC_CHANNEL_0,
             .timer_sel = LEDC_TIMER_0,
             .duty = 1,  // 50%占空比
@@ -179,7 +179,7 @@ private:
         };
         ledc_channel_config(&ledc_channel);
         
-        ESP_LOGI(TAG, "MCLK配置完成");
+        ESP_LOGI(TAG, "MCLK配置完成\n");
     }
     
     void InitializeI2c() {
@@ -204,10 +204,10 @@ private:
             return;
         }
         
-        ESP_LOGI(TAG, "I2C总线初始化成功");
+        ESP_LOGI(TAG, "I2C总线初始化成功\n");
         
         // 扫描I2C设备
-        i2c_scan_devices();
+        //i2c_scan_devices();
     }
     
     void i2c_scan_devices() {
@@ -226,6 +226,12 @@ private:
             ESP_LOGW(TAG, "未检测到任何I2C设备！请检查连接");
         } else {
             ESP_LOGI(TAG, "共发现 %d 个I2C设备", devices_found);
+        }
+
+        // 扫描到设备后，添加延迟再进行通信
+        if (devices_found > 0) {
+            ESP_LOGI(TAG, "等待ES8311芯片稳定...");
+            vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
         }
     }
 
@@ -420,6 +426,26 @@ private:
     }
 
 public:
+    //检查 GPIO 42 状态 ======================================================================
+    void check_gpio_status() {
+        ESP_LOGI(TAG, "检查GPIO 42状态...");
+        
+        // 检查GPIO状态
+        gpio_config_t io_conf;
+        esp_err_t ret = gpio_get_config(GPIO_NUM_42, &io_conf);
+        
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "GPIO 42配置: mode=%d, pull_up=%d, pull_down=%d, intr_type=%d", 
+                    io_conf.mode, io_conf.pull_up_en, io_conf.pull_down_en, io_conf.intr_type);
+        } else {
+            ESP_LOGI(TAG, "无法获取GPIO 42配置: %s", esp_err_to_name(ret));
+        }
+        
+        // 尝试重置GPIO
+        gpio_reset_pin(GPIO_NUM_42);
+        ESP_LOGI(TAG, "已重置GPIO 42");
+    }
+    //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
@@ -428,6 +454,10 @@ public:
         InitializeIot();
 
         // ********************* i2c 总线初始化 ****************************
+        check_gpio_status();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        
+        InitializeMclk();
         InitializeI2c();
         i2c_scan_devices();
         // ****************************************************************
