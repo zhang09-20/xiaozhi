@@ -406,6 +406,13 @@ void Application::Start() {
 
     /* Setup the audio codec */
     auto codec = board.GetAudioCodec();     //创建opus编解码器实例
+
+    volatile int my_test = 1;
+    if(my_test == 1) {    
+        ESP_LOGI(TAG, "******************************* application GetAudioCodec ********************************");
+    }
+
+
     //初始化opus解码器
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(codec->output_sample_rate(), 1, OPUS_FRAME_DURATION_MS);
     //初始化opus编码器

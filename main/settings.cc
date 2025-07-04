@@ -18,19 +18,23 @@ Settings::~Settings() {
     }
 }
 
+// =============================== 1、获取字符串 ===============================
 std::string Settings::GetString(const std::string& key, const std::string& default_value) {
     if (nvs_handle_ == 0) {
         return default_value;
     }
 
     size_t length = 0;
+    // 获取字符串长度
     if (nvs_get_str(nvs_handle_, key.c_str(), nullptr, &length) != ESP_OK) {
         return default_value;
     }
 
     std::string value;
     value.resize(length);
-    ESP_ERROR_CHECK(nvs_get_str(nvs_handle_, key.c_str(), value.data(), &length));
+    ESP_ERROR_CHECK(nvs_get_str(nvs_handle_, key.c_str(), value.data(), &length));  // 获取字符串
+
+    // 去掉末尾的 '\0'
     while (!value.empty() && value.back() == '\0') {
         value.pop_back();
     }
