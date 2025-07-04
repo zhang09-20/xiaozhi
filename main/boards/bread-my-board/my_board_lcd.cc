@@ -15,6 +15,7 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
+#include <driver/ledc.h>
 
 // *******************************************************
 #include "audio_codecs/es8311_audio_codec.h"
@@ -485,7 +486,7 @@ public:
 
         // 2. 实例化 ES8311 编解码器
         static Es8311AudioCodec audio_codec(
-            codec_i2c_bus,                // I2C 句柄
+            i2c_bus_,                // I2C 句柄
             I2C_NUM_0,                    // I2C 端口号
             AUDIO_INPUT_SAMPLE_RATE,      // 输入采样率
             AUDIO_OUTPUT_SAMPLE_RATE,     // 输出采样率
