@@ -123,9 +123,7 @@ private:
 
 public:
     //紧凑型 wifi 板，lcd板，构造函数
-    MyWifiBoardLCD() :
-        ESP_LOGI(TAG, "my_board_lcd constructor");
-        boot_button_(BOOT_BUTTON_GPIO) {
+    MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
@@ -162,6 +160,8 @@ public:
 
 
     virtual AudioCodec* GetAudioCodec() override {
+
+        ESP_LOGI(TAG, "******************************* GetAudioCodec my_board_lcd ********************************");
         // 1. 初始化 I2C 总线（如有需要，通常在板子构造函数里做）
         static i2c_master_bus_handle_t codec_i2c_bus = nullptr;
         if (!codec_i2c_bus) {
@@ -174,7 +174,7 @@ public:
                 .intr_priority = 0,
                 .trans_queue_depth = 0,
                 .flags = {
-                    .enable_internal_pullup = 1,
+                .enable_internal_pullup = 1,
                 },
             };
             ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus));

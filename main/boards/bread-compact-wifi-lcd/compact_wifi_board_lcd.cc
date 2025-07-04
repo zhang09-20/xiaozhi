@@ -182,6 +182,10 @@ public:
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
     //获取 音频编码器
     virtual AudioCodec* GetAudioCodec() override {
+
+        ESP_LOGI(TAG, "******************************* GetAudioCodec compact_wifi_board_lcd ********************************");
+    
+
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
