@@ -26,21 +26,19 @@ bool AudioCodec::InputData(std::vector<int16_t>& data) {
     return false;
 }
 
-//音频 编、解码器 初始化
 void AudioCodec::Start() {
-    //创建
     Settings settings("audio", false);
     output_volume_ = settings.GetInt("output_volume", output_volume_);
-    if (output_volume_ <= 0) {  //如果音频输出 音量非法值
+    if (output_volume_ <= 0) {
         ESP_LOGW(TAG, "Output volume value (%d) is too small, setting to default (10)", output_volume_);
-        output_volume_ = 10;    //音频输出 音量设置为默认值
+        output_volume_ = 10;
     }
 
-    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));    //
+    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
 
-    EnableInput(true);  //音频输入 启动
-    EnableOutput(true); //音频输出 启动
+    EnableInput(true);
+    EnableOutput(true);
     ESP_LOGI(TAG, "Audio codec started");
 }
 

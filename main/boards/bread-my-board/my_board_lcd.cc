@@ -386,7 +386,7 @@ public:
         //check_gpio_status();
         //vTaskDelay(pdMS_TO_TICKS(100));
 
-        //InitializeMclk();
+        InitializeMclk();
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(500));
         
@@ -448,14 +448,14 @@ public:
             I2C_NUM_0,                    // I2C 端口号
             AUDIO_INPUT_SAMPLE_RATE,      // 输入采样率
             AUDIO_OUTPUT_SAMPLE_RATE,     // 输出采样率
-            //AUDIO_CODEC_I2C_MCLK_PIN,     // MCLK
-            GPIO_NUM_NC,
+            AUDIO_CODEC_I2C_MCLK_PIN,     // MCLK
+            //GPIO_NUM_NC,
             AUDIO_CODEC_I2S_SCLK_PIN,     // BCLK (SCLK)
             AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
             AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
             GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
-            AUDIO_CODEC_ES8311_ADDR,      // ES8311 I2C 地址
+            AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
         );
         return &audio_codec;
     }
