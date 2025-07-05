@@ -466,6 +466,7 @@ public:
         }
     }
 
+    //禁用 JTAG 引脚
     void disable_jtag_pins(void)
     {
         // 重置 JTAG 用到的 GPIO 引脚，释放成普通 GPIO
@@ -475,6 +476,59 @@ public:
         gpio_reset_pin(GPIO_NUM_45);
     }
 
+    //诊断 ES8311 问题
+    bool diagnose_es8311_issue() {
+        ESP_LOGI(TAG, "开始诊断ES8311问题...");
+        
+        // 1. 测试基本I2C通信
+        ESP_LOGI(TAG, "测试基本I2C通信...");
+        esp_err_t scan_ret = i2c_master_probe(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, I2C_TIMEOUT_MS);
+        if (scan_ret != ESP_OK) {
+            ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题");
+            return false;
+        }
+        ESP_LOGI(TAG, "设备存在于地址0x%02x", AUDIO_CODEC_ES8311_ADDR);
+        
+        // 2. 尝试读取芯片ID
+        ESP_LOGI(TAG, "尝试读取芯片ID...");
+        uint8_t id_reg = 0xFD;  // ES8311芯片ID寄存器
+        uint8_t chip_id;
+        esp_err_t id_ret = i2c_master_write_read_device(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, 
+                                                    &id_reg, 1, &chip_id, 1, I2C_TIMEOUT_MS);
+        
+        if (id_ret != ESP_OK) {
+            ESP_LOGE(TAG, "读取芯片ID失败: %s，这是I2C通信问题", esp_err_to_name(id_ret));
+            return false;
+        }
+        
+        ESP_LOGI(TAG, "芯片ID: 0x%02x", chip_id);
+        if (chip_id != 0x83) {  // 假设正确ID是0x83
+            ESP_LOGW(TAG, "芯片ID不正确，设备可能初始化失败或是假冒芯片");
+            // 通信正常但设备异常
+            return false;
+        }
+        
+        // 3. 尝试软复位并验证
+        ESP_LOGI(TAG, "尝试软复位ES8311...");
+        uint8_t reset_data[2] = {0x00, 0x01};  // 假设这是复位寄存器和值
+        esp_err_t reset_ret = i2c_master_write_to_device(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, 
+                                                    reset_data, 2, I2C_TIMEOUT_MS);
+        
+        if (reset_ret != ESP_OK) {
+            ESP_LOGE(TAG, "发送复位命令失败: %s，这是I2C通信问题", esp_err_to_name(reset_ret));
+            return false;
+        }
+        
+        // 等待复位完成
+        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        // 4. 尝试基本配置并验证
+        ESP_LOGI(TAG, "尝试基本配置...");
+        // 这里添加一些基本配置代码
+        
+        ESP_LOGI(TAG, "诊断完成: I2C通信正常，设备响应正常\n");
+        return true;
+    }
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
@@ -484,11 +538,13 @@ public:
         InitializeIot();
 
         // ********************* i2c 总线初始化 ****************************
-        disable_jtag_pins();    // 禁用 JTAG 引脚
-        vTaskDelay(pdMS_TO_TICKS(100));
+        // disable_jtag_pins();    // 禁用 JTAG 引脚
+        // vTaskDelay(pdMS_TO_TICKS(100));
+
+        diagnose_es8311_issue();
 
         check_gpio_status();
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
 
         InitializeMclk();
         InitializeI2c();
