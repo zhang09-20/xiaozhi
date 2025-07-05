@@ -484,50 +484,80 @@ public:
         ESP_LOGI(TAG, "测试基本I2C通信...");
         esp_err_t scan_ret = i2c_master_probe(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, I2C_TIMEOUT_MS);
         if (scan_ret != ESP_OK) {
-            ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题");
+            ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题: %s", esp_err_to_name(scan_ret));
             return false;
         }
         ESP_LOGI(TAG, "设备存在于地址0x%02x", AUDIO_CODEC_ES8311_ADDR);
         
         // 2. 尝试读取芯片ID
         ESP_LOGI(TAG, "尝试读取芯片ID...");
+        
+        // 创建I2C设备句柄
+        i2c_master_dev_handle_t es8311_dev;
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = AUDIO_CODEC_ES8311_ADDR,
+            .scl_speed_hz = 100000, // 降低速度到100kHz以提高稳定性
+        };
+        
+        esp_err_t dev_ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &es8311_dev);
+        if (dev_ret != ESP_OK) {
+            ESP_LOGE(TAG, "创建I2C设备句柄失败: %s", esp_err_to_name(dev_ret));
+            return false;
+        }
+        
+        // 读取芯片ID
         uint8_t id_reg = 0xFD;  // ES8311芯片ID寄存器
         uint8_t chip_id;
-        esp_err_t id_ret = i2c_master_write_read_device(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, 
-                                                    &id_reg, 1, &chip_id, 1, I2C_TIMEOUT_MS);
+        
+        // 使用新的I2C API进行读写
+        esp_err_t id_ret = i2c_master_transmit_receive(es8311_dev, &id_reg, 1, &chip_id, 1, I2C_TIMEOUT_MS);
         
         if (id_ret != ESP_OK) {
             ESP_LOGE(TAG, "读取芯片ID失败: %s，这是I2C通信问题", esp_err_to_name(id_ret));
+            i2c_master_bus_rm_device(es8311_dev);
             return false;
         }
         
         ESP_LOGI(TAG, "芯片ID: 0x%02x", chip_id);
         if (chip_id != 0x83) {  // 假设正确ID是0x83
             ESP_LOGW(TAG, "芯片ID不正确，设备可能初始化失败或是假冒芯片");
-            // 通信正常但设备异常
+            i2c_master_bus_rm_device(es8311_dev);
             return false;
         }
         
         // 3. 尝试软复位并验证
         ESP_LOGI(TAG, "尝试软复位ES8311...");
         uint8_t reset_data[2] = {0x00, 0x01};  // 假设这是复位寄存器和值
-        esp_err_t reset_ret = i2c_master_write_to_device(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, 
-                                                    reset_data, 2, I2C_TIMEOUT_MS);
+        
+        esp_err_t reset_ret = i2c_master_transmit(es8311_dev, reset_data, 2, I2C_TIMEOUT_MS);
         
         if (reset_ret != ESP_OK) {
             ESP_LOGE(TAG, "发送复位命令失败: %s，这是I2C通信问题", esp_err_to_name(reset_ret));
+            i2c_master_bus_rm_device(es8311_dev);
             return false;
         }
         
         // 等待复位完成
         vTaskDelay(pdMS_TO_TICKS(100));
         
-        // 4. 尝试基本配置并验证
-        ESP_LOGI(TAG, "尝试基本配置...");
-        // 这里添加一些基本配置代码
+        // 4. 尝试读取状态寄存器
+        uint8_t status_reg = 0x01;  // 假设这是状态寄存器
+        uint8_t status;
+        esp_err_t status_ret = i2c_master_transmit_receive(es8311_dev, &status_reg, 1, &status, 1, I2C_TIMEOUT_MS);
+        
+        if (status_ret == ESP_OK) {
+            ESP_LOGI(TAG, "复位后状态: 0x%02x", status);
+        } else {
+            ESP_LOGE(TAG, "读取状态失败: %s", esp_err_to_name(status_ret));
+        }
+        
+        // 清理资源
+        i2c_master_bus_rm_device(es8311_dev);
         
         ESP_LOGI(TAG, "诊断完成: I2C通信正常，设备响应正常\n");
         return true;
+
     }
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
