@@ -27,7 +27,7 @@
 
 // I2C配置
 #define I2C_MASTER_NUM              0
-#define I2C_MASTER_FREQ_HZ          100000  // 200kHz
+#define I2C_MASTER_FREQ_HZ          200000  // 200kHz
 #define I2C_TIMEOUT_MS              1000
 
 
@@ -593,8 +593,10 @@ public:
         //check_gpio_status();
         //vTaskDelay(pdMS_TO_TICKS(100));
 
-        InitializeMclk();
+        //InitializeMclk();
         InitializeI2c();
+        vTaskDelay(pdMS_TO_TICKS(500));
+        
         i2c_scan_devices();
         
         //diagnose_es8311_issue();
@@ -658,8 +660,8 @@ public:
             I2C_NUM_0,                    // I2C 端口号
             AUDIO_INPUT_SAMPLE_RATE,      // 输入采样率
             AUDIO_OUTPUT_SAMPLE_RATE,     // 输出采样率
+            //AUDIO_CODEC_I2C_MCLK_PIN,     // MCLK
             GPIO_NUM_NC,
-            AUDIO_CODEC_I2C_MCLK_PIN,     // MCLK
             AUDIO_CODEC_I2S_SCLK_PIN,     // BCLK (SCLK)
             AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
             AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
