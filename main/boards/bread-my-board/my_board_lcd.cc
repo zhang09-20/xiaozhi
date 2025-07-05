@@ -27,7 +27,7 @@
 
 // I2C配置
 #define I2C_MASTER_NUM              0
-#define I2C_MASTER_FREQ_HZ          400000  // 400kHz
+#define I2C_MASTER_FREQ_HZ          200000  // 200kHz
 #define I2C_TIMEOUT_MS              1000
 
 
@@ -149,6 +149,11 @@ private:
  
     Button boot_button_;
     LcdDisplay* display_;
+
+
+
+
+
 
     // // 全局I2C总线句柄 *****************************************************
 
@@ -334,6 +339,11 @@ private:
 
     // // ********************************************************************
 
+
+
+
+
+
     //初始化 spi 总线
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -424,6 +434,11 @@ private:
     }
 
 public:
+
+
+
+
+
     //检查 GPIO 42 状态 ======================================================================
     void check_gpio_status() {
         ESP_LOGI(TAG, "检查GPIO 42状态...");
@@ -466,6 +481,7 @@ public:
         }
     }
 
+
     //禁用 JTAG 引脚
     void disable_jtag_pins(void)
     {
@@ -476,6 +492,7 @@ public:
         gpio_reset_pin(GPIO_NUM_45);
     }
 
+
     //诊断 ES8311 问题
     bool diagnose_es8311_issue() {
         ESP_LOGI(TAG, "开始诊断ES8311问题...");
@@ -484,7 +501,7 @@ public:
         ESP_LOGI(TAG, "测试基本I2C通信...");
         esp_err_t scan_ret = i2c_master_probe(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, I2C_TIMEOUT_MS);
         if (scan_ret != ESP_OK) {
-            ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题: %s", esp_err_to_name(scan_ret));
+            ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题: %s\n", esp_err_to_name(scan_ret));
             return false;
         }
         ESP_LOGI(TAG, "设备存在于地址0x%02x", AUDIO_CODEC_ES8311_ADDR);
@@ -502,7 +519,7 @@ public:
         
         esp_err_t dev_ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &es8311_dev);
         if (dev_ret != ESP_OK) {
-            ESP_LOGE(TAG, "创建I2C设备句柄失败: %s", esp_err_to_name(dev_ret));
+            ESP_LOGE(TAG, "创建I2C设备句柄失败: %s\n", esp_err_to_name(dev_ret));
             return false;
         }
         
@@ -514,14 +531,14 @@ public:
         esp_err_t id_ret = i2c_master_transmit_receive(es8311_dev, &id_reg, 1, &chip_id, 1, I2C_TIMEOUT_MS);
         
         if (id_ret != ESP_OK) {
-            ESP_LOGE(TAG, "读取芯片ID失败: %s，这是I2C通信问题", esp_err_to_name(id_ret));
+            ESP_LOGE(TAG, "读取芯片ID失败: %s，这是I2C通信问题\n", esp_err_to_name(id_ret));
             i2c_master_bus_rm_device(es8311_dev);
             return false;
         }
         
         ESP_LOGI(TAG, "芯片ID: 0x%02x", chip_id);
         if (chip_id != 0x83) {  // 假设正确ID是0x83
-            ESP_LOGW(TAG, "芯片ID不正确，设备可能初始化失败或是假冒芯片");
+            ESP_LOGW(TAG, "芯片ID不正确，设备可能初始化失败或是假冒芯片\n");
             i2c_master_bus_rm_device(es8311_dev);
             return false;
         }
@@ -533,7 +550,7 @@ public:
         esp_err_t reset_ret = i2c_master_transmit(es8311_dev, reset_data, 2, I2C_TIMEOUT_MS);
         
         if (reset_ret != ESP_OK) {
-            ESP_LOGE(TAG, "发送复位命令失败: %s，这是I2C通信问题", esp_err_to_name(reset_ret));
+            ESP_LOGE(TAG, "发送复位命令失败: %s，这是I2C通信问题\n", esp_err_to_name(reset_ret));
             i2c_master_bus_rm_device(es8311_dev);
             return false;
         }
