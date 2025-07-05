@@ -465,6 +465,16 @@ public:
             ESP_LOGI(TAG, "GPIO 42可以被配置为输出模式");
         }
     }
+
+    void disable_jtag_pins(void)
+    {
+        // 重置 JTAG 用到的 GPIO 引脚，释放成普通 GPIO
+        gpio_reset_pin(GPIO_NUM_42);
+        gpio_reset_pin(GPIO_NUM_43);
+        gpio_reset_pin(GPIO_NUM_44);
+        gpio_reset_pin(GPIO_NUM_45);
+    }
+
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
@@ -474,6 +484,9 @@ public:
         InitializeIot();
 
         // ********************* i2c 总线初始化 ****************************
+        disable_jtag_pins();    // 禁用 JTAG 引脚
+        vTaskDelay(pdMS_TO_TICKS(100));
+
         check_gpio_status();
         vTaskDelay(pdMS_TO_TICKS(1000));
 
