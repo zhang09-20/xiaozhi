@@ -167,7 +167,7 @@ private:
             .freq_hz = freq,
             .clk_cfg = LEDC_AUTO_CLK
         };
-        ledc_timer_config(&ledc_timer);
+        ledc_timer_config(&ledc_timer);     // 配置定时器
         
         ledc_channel_config_t ledc_channel = {
             .gpio_num = mclk_pin,
@@ -177,7 +177,7 @@ private:
             .duty = 1,  // 50%占空比
             .hpoint = 0
         };
-        ledc_channel_config(&ledc_channel);
+        ledc_channel_config(&ledc_channel); // 配置通道
         
         ESP_LOGI(TAG, "MCLK配置完成\n");
     }
@@ -198,16 +198,14 @@ private:
             }
         };
         
-        esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &i2c_bus_);
+        esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &i2c_bus_); // 创建 I2C 总线
+
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "I2C总线初始化失败: %s", esp_err_to_name(ret));
             return;
         }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
-        
-        // 扫描I2C设备
-        //i2c_scan_devices();
     }
     
     void i2c_scan_devices() {
@@ -549,7 +547,7 @@ public:
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
             GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
             AUDIO_CODEC_ES8311_ADDR,      // ES8311 I2C 地址
-            true   //false                // use_mclk, 可选参数
+            false   //false                // use_mclk, 可选参数
         );
         return &audio_codec;
     }
