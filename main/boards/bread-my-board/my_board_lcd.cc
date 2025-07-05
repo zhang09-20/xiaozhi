@@ -31,113 +31,6 @@
 #define I2C_TIMEOUT_MS              1000
 
 
-// // I2C初始化函数
-// static esp_err_t i2c_master_init(void)
-// {
-//     // 新版I2C Master配置
-//     i2c_master_bus_config_t i2c_mst_config = {
-//         .clk_source = I2C_CLK_SRC_DEFAULT,
-//         .i2c_port = I2C_MASTER_NUM,
-//         .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
-//         .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-//         .glitch_ignore_cnt = 7,
-//         .flags.enable_internal_pullup = true,
-//     };
-    
-//     // 创建I2C Master总线
-//     esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &bus_handle);
-//     if (ret != ESP_OK) {
-//         ESP_LOGE("I2C", "I2C总线创建失败: %s", esp_err_to_name(ret));
-//         return ret;
-//     }
-    
-//     // 配置MCLK引脚
-//     gpio_config_t io_conf = {
-//         .pin_bit_mask = (1ULL << AUDIO_CODEC_I2C_MCLK_PIN),
-//         .mode = GPIO_MODE_OUTPUT,
-//         .pull_up_en = GPIO_PULLUP_DISABLE,
-//         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-//         .intr_type = GPIO_INTR_DISABLE,
-//     };
-//     gpio_config(&io_conf);
-    
-//     // 启动MCLK输出任务
-//     xTaskCreate(mclk_task, "mclk_task", 2048, NULL, 5, NULL);
-    
-//     ESP_LOGI("I2C", "I2C主机初始化成功");
-//     return ESP_OK;
-// }
-
-// // MCLK输出任务
-// static void mclk_task(void *arg)
-// {
-//     ESP_LOGI("MCLK", "开始输出MCLK信号");
-    
-//     // 使用硬件时钟输出代替软件模拟
-//     // 配置MCLK为时钟输出
-//     // 注意：ESP32-S3可以使用LEDC外设产生时钟信号
-    
-//     // 配置LEDC定时器
-//     ledc_timer_config_t ledc_timer = {
-//         .speed_mode = LEDC_LOW_SPEED_MODE,
-//         .duty_resolution = LEDC_TIMER_1_BIT, // 设置为1位分辨率，产生50%占空比
-//         .timer_num = LEDC_TIMER_0,
-//         .freq_hz = 12000000, // 12MHz MCLK for ES8311
-//         .clk_cfg = LEDC_AUTO_CLK,
-//     };
-//     ledc_timer_config(&ledc_timer);
-    
-//     // 配置LEDC通道
-//     ledc_channel_config_t ledc_channel = {
-//         .gpio_num = AUDIO_CODEC_I2C_MCLK_PIN,
-//         .speed_mode = LEDC_LOW_SPEED_MODE,
-//         .channel = LEDC_CHANNEL_0,
-//         .timer_sel = LEDC_TIMER_0,
-//         .duty = 1, // 50%占空比 (对于1位分辨率，值为1表示50%)
-//         .hpoint = 0,
-//     };
-//     ledc_channel_config(&ledc_channel);
-    
-//     ESP_LOGI("MCLK", "MCLK硬件时钟配置完成");
-    
-//     // 任务完成后删除自己
-//     vTaskDelete(NULL);
-// }
-
-// // 扫描I2C总线上的所有设备
-// static void i2c_scan_devices(void)
-// {
-//     ESP_LOGI("I2C", "开始扫描I2C设备...");
-//     uint8_t devices_found = 0;
-    
-//     for (uint8_t i = 1; i < 128; i++) {
-//         // 直接使用i2c_master_probe函数检测设备
-//         esp_err_t ret = i2c_master_probe(bus_handle, i, I2C_TIMEOUT_MS);
-        
-//         if (ret == ESP_OK) {
-//             ESP_LOGI("I2C", "检测到设备: 0x%02x", i);
-//             devices_found++;
-            
-//             // 如果是ES8311地址，特别标记
-//             if (i == AUDIO_CODEC_ES8311_ADDR) {
-//                 ESP_LOGI("I2C", "找到ES8311编解码器! (地址: 0x%02x)", i);
-//             }
-//         }
-        
-//         // 添加短暂延时，避免I2C总线过载
-//         vTaskDelay(pdMS_TO_TICKS(10));
-//     }
-    
-//     if (devices_found == 0) {
-//         ESP_LOGW("I2C", "未检测到任何I2C设备！请检查连接");
-//     } else {
-//         ESP_LOGI("I2C", "扫描完成, 共发现 %d 个设备", devices_found);
-//     }
-// }
-
-
-
-
 #define TAG "my_board_lcd"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -146,7 +39,6 @@ LV_FONT_DECLARE(font_awesome_16_4);
 // 面板板，wifi板，lcd板，紧凑型
 class MyWifiBoardLCD : public WifiBoard {
 private:
- 
     Button boot_button_;
     LcdDisplay* display_;
 
@@ -237,105 +129,6 @@ private:
             vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
         }
     }
-
-
-
-
-    // static i2c_master_bus_handle_t bus_handle = nullptr;
-
-    // //初始化 i2c 总线
-    // void InitializeI2c() {
-    //     // 新版I2C Master配置
-    //     i2c_master_bus_config_t i2c_mst_config = {
-    //         .clk_source = I2C_CLK_SRC_DEFAULT,
-    //         .i2c_port = I2C_MASTER_NUM,
-    //         .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
-    //         .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-    //         .glitch_ignore_cnt = 7,
-    //         .flags.enable_internal_pullup = true,
-    //     };
-        
-    //     // 创建I2C Master总线
-    //     esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &bus_handle);
-    //     if (ret != ESP_OK) {
-    //         ESP_LOGE("I2C", "I2C总线创建失败: %s", esp_err_to_name(ret));
-    //         //return ret;
-    //     }
-        
-    //     // 配置MCLK引脚
-    //     gpio_config_t io_conf = {
-    //         .pin_bit_mask = (1ULL << AUDIO_CODEC_I2C_MCLK_PIN),
-    //         .mode = GPIO_MODE_OUTPUT,
-    //         .pull_up_en = GPIO_PULLUP_DISABLE,
-    //         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-    //         .intr_type = GPIO_INTR_DISABLE,
-    //     };
-    //     gpio_config(&io_conf);
-        
-    //     ESP_LOGI("I2C", "I2C主机初始化成功");   
-
-    //     //========================= 输出 MCLK 信号 ====================================
-
-    //     ESP_LOGI("MCLK", "开始输出MCLK信号");
-        
-    //     // 使用硬件时钟输出代替软件模拟
-    //     // 配置MCLK为时钟输出
-    //     // 注意：ESP32-S3可以使用LEDC外设产生时钟信号
-        
-    //     // 配置LEDC定时器
-    //     ledc_timer_config_t ledc_timer = {
-    //         .speed_mode = LEDC_LOW_SPEED_MODE,
-    //         .duty_resolution = LEDC_TIMER_1_BIT, // 设置为1位分辨率，产生50%占空比
-    //         .timer_num = LEDC_TIMER_0,
-    //         .freq_hz = 12000000, // 12MHz MCLK for ES8311
-    //         .clk_cfg = LEDC_AUTO_CLK,
-    //     };
-    //     ledc_timer_config(&ledc_timer);
-        
-    //     // 配置LEDC通道
-    //     ledc_channel_config_t ledc_channel = {
-    //         .gpio_num = AUDIO_CODEC_I2C_MCLK_PIN,
-    //         .speed_mode = LEDC_LOW_SPEED_MODE,
-    //         .channel = LEDC_CHANNEL_0,
-    //         .timer_sel = LEDC_TIMER_0,
-    //         .duty = 1, // 50%占空比 (对于1位分辨率，值为1表示50%)
-    //         .hpoint = 0,
-    //     };
-    //     ledc_channel_config(&ledc_channel);
-        
-    //     ESP_LOGI("MCLK", "MCLK硬件时钟配置完成");
-    // }
-
-
-    // // 扫描I2C总线上的所有设备
-    // void i2c_scan_devices(void) {
-    //     ESP_LOGI("I2C", "开始扫描I2C设备...");
-    //     uint8_t devices_found = 0;
-        
-    //     for (uint8_t i = 1; i < 128; i++) {
-    //         // 直接使用i2c_master_probe函数检测设备
-    //         esp_err_t ret = i2c_master_probe(bus_handle, i, I2C_TIMEOUT_MS);
-            
-    //         if (ret == ESP_OK) {
-    //             ESP_LOGI("I2C", "检测到设备: 0x%02x", i);
-    //             devices_found++;
-                
-    //             // 如果是ES8311地址，特别标记
-    //             if (i == AUDIO_CODEC_ES8311_ADDR) {
-    //                 ESP_LOGI("I2C", "找到ES8311编解码器! (地址: 0x%02x)", i);
-    //             }
-    //         }
-            
-    //         // 添加短暂延时，避免I2C总线过载
-    //         vTaskDelay(pdMS_TO_TICKS(10));
-    //     }
-        
-    //     if (devices_found == 0) {
-    //         ESP_LOGW("I2C", "未检测到任何I2C设备！请检查连接");
-    //     } else {
-    //         ESP_LOGI("I2C", "扫描完成, 共发现 %d 个设备", devices_found);
-    //     }
-    // }
 
     // // ********************************************************************
 
@@ -440,142 +233,142 @@ public:
 
 
     //检查 GPIO 42 状态 ======================================================================
-    void check_gpio_status() {
-        ESP_LOGI(TAG, "检查GPIO 42状态...");
+    // void check_gpio_status() {
+    //     ESP_LOGI(TAG, "检查GPIO 42状态...");
         
-        // ESP-IDF没有直接的函数来获取GPIO配置
-        // 我们可以尝试读取GPIO的状态
-        int level = gpio_get_level(GPIO_NUM_42);
-        ESP_LOGI(TAG, "GPIO 42当前电平: %d", level);
+    //     // ESP-IDF没有直接的函数来获取GPIO配置
+    //     // 我们可以尝试读取GPIO的状态
+    //     int level = gpio_get_level(GPIO_NUM_42);
+    //     ESP_LOGI(TAG, "GPIO 42当前电平: %d", level);
         
-        // 尝试重置GPIO以解除可能的冲突
-        gpio_reset_pin(GPIO_NUM_42);
-        ESP_LOGI(TAG, "已重置GPIO 42");
+    //     // 尝试重置GPIO以解除可能的冲突
+    //     gpio_reset_pin(GPIO_NUM_42);
+    //     ESP_LOGI(TAG, "已重置GPIO 42");
         
-        // 配置为输入模式，检查是否有其他驱动干扰
-        gpio_config_t io_conf = {};
-        io_conf.pin_bit_mask = (1ULL << GPIO_NUM_42);
-        io_conf.mode = GPIO_MODE_INPUT;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
+    //     // 配置为输入模式，检查是否有其他驱动干扰
+    //     gpio_config_t io_conf = {};
+    //     io_conf.pin_bit_mask = (1ULL << GPIO_NUM_42);
+    //     io_conf.mode = GPIO_MODE_INPUT;
+    //     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    //     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    //     io_conf.intr_type = GPIO_INTR_DISABLE;
         
-        esp_err_t ret = gpio_config(&io_conf);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "无法配置GPIO 42为输入模式: %s", esp_err_to_name(ret));
-        } else {
-            // 读取GPIO状态，看是否被其他驱动控制
-            vTaskDelay(pdMS_TO_TICKS(10));  // 短暂延迟让配置生效
-            level = gpio_get_level(GPIO_NUM_42);
-            ESP_LOGI(TAG, "配置为输入后，GPIO 42电平: %d", level);
-        }
+    //     esp_err_t ret = gpio_config(&io_conf);
+    //     if (ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "无法配置GPIO 42为输入模式: %s", esp_err_to_name(ret));
+    //     } else {
+    //         // 读取GPIO状态，看是否被其他驱动控制
+    //         vTaskDelay(pdMS_TO_TICKS(10));  // 短暂延迟让配置生效
+    //         level = gpio_get_level(GPIO_NUM_42);
+    //         ESP_LOGI(TAG, "配置为输入后，GPIO 42电平: %d", level);
+    //     }
         
-        // 尝试配置为输出模式
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        ret = gpio_config(&io_conf);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "无法配置GPIO 42为输出模式: %s", esp_err_to_name(ret));
-            ESP_LOGI(TAG, "GPIO 42可能被其他驱动程序占用，尝试使用其他GPIO引脚");
-        } else {
-            ESP_LOGI(TAG, "GPIO 42可以被配置为输出模式");
-        }
-    }
+    //     // 尝试配置为输出模式
+    //     io_conf.mode = GPIO_MODE_OUTPUT;
+    //     ret = gpio_config(&io_conf);
+    //     if (ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "无法配置GPIO 42为输出模式: %s", esp_err_to_name(ret));
+    //         ESP_LOGI(TAG, "GPIO 42可能被其他驱动程序占用，尝试使用其他GPIO引脚");
+    //     } else {
+    //         ESP_LOGI(TAG, "GPIO 42可以被配置为输出模式");
+    //     }
+    // }
 
 
-    //禁用 JTAG 引脚
-    void disable_jtag_pins(void)
-    {
-        // 重置 JTAG 用到的 GPIO 引脚，释放成普通 GPIO
-        gpio_reset_pin(GPIO_NUM_42);
-        gpio_reset_pin(GPIO_NUM_43);
-        gpio_reset_pin(GPIO_NUM_44);
-        gpio_reset_pin(GPIO_NUM_45);
-    }
+    // //禁用 JTAG 引脚
+    // void disable_jtag_pins(void)
+    // {
+    //     // 重置 JTAG 用到的 GPIO 引脚，释放成普通 GPIO
+    //     gpio_reset_pin(GPIO_NUM_42);
+    //     gpio_reset_pin(GPIO_NUM_43);
+    //     gpio_reset_pin(GPIO_NUM_44);
+    //     gpio_reset_pin(GPIO_NUM_45);
+    // }
 
 
-    //诊断 ES8311 问题
-    bool diagnose_es8311_issue() {
-        ESP_LOGI(TAG, "开始诊断ES8311问题...");
+    // //诊断 ES8311 问题
+    // bool diagnose_es8311_issue() {
+    //     ESP_LOGI(TAG, "开始诊断ES8311问题...");
         
-        // 1. 测试基本I2C通信
-        ESP_LOGI(TAG, "测试基本I2C通信...");
-        esp_err_t scan_ret = i2c_master_probe(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, I2C_TIMEOUT_MS);
-        if (scan_ret != ESP_OK) {
-            ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题: %s\n", esp_err_to_name(scan_ret));
-            return false;
-        }
-        ESP_LOGI(TAG, "设备存在于地址0x%02x", AUDIO_CODEC_ES8311_ADDR);
+    //     // 1. 测试基本I2C通信
+    //     ESP_LOGI(TAG, "测试基本I2C通信...");
+    //     esp_err_t scan_ret = i2c_master_probe(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, I2C_TIMEOUT_MS);
+    //     if (scan_ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "无法检测到ES8311设备，I2C通信问题: %s\n", esp_err_to_name(scan_ret));
+    //         return false;
+    //     }
+    //     ESP_LOGI(TAG, "设备存在于地址0x%02x", AUDIO_CODEC_ES8311_ADDR);
         
-        // 2. 尝试读取芯片ID
-        ESP_LOGI(TAG, "尝试读取芯片ID...");
+    //     // 2. 尝试读取芯片ID
+    //     ESP_LOGI(TAG, "尝试读取芯片ID...");
         
-        // 创建I2C设备句柄
-        i2c_master_dev_handle_t es8311_dev;
-        i2c_device_config_t dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = AUDIO_CODEC_ES8311_ADDR,
-            .scl_speed_hz = 100000, // 降低速度到100kHz以提高稳定性
-        };
+    //     // 创建I2C设备句柄
+    //     i2c_master_dev_handle_t es8311_dev;
+    //     i2c_device_config_t dev_cfg = {
+    //         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+    //         .device_address = AUDIO_CODEC_ES8311_ADDR,
+    //         .scl_speed_hz = 100000, // 降低速度到100kHz以提高稳定性
+    //     };
         
-        esp_err_t dev_ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &es8311_dev);
-        if (dev_ret != ESP_OK) {
-            ESP_LOGE(TAG, "创建I2C设备句柄失败: %s\n", esp_err_to_name(dev_ret));
-            return false;
-        }
+    //     esp_err_t dev_ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &es8311_dev);
+    //     if (dev_ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "创建I2C设备句柄失败: %s\n", esp_err_to_name(dev_ret));
+    //         return false;
+    //     }
         
-        // 读取芯片ID
-        uint8_t id_reg = 0xFD;  // ES8311芯片ID寄存器
-        uint8_t chip_id;
+    //     // 读取芯片ID
+    //     uint8_t id_reg = 0xFD;  // ES8311芯片ID寄存器
+    //     uint8_t chip_id;
         
-        // 使用新的I2C API进行读写
-        esp_err_t id_ret = i2c_master_transmit_receive(es8311_dev, &id_reg, 1, &chip_id, 1, I2C_TIMEOUT_MS);
+    //     // 使用新的I2C API进行读写
+    //     esp_err_t id_ret = i2c_master_transmit_receive(es8311_dev, &id_reg, 1, &chip_id, 1, I2C_TIMEOUT_MS);
         
-        if (id_ret != ESP_OK) {
-            ESP_LOGE(TAG, "读取芯片ID失败: %s，这是I2C通信问题\n", esp_err_to_name(id_ret));
-            i2c_master_bus_rm_device(es8311_dev);
-            return false;
-        }
+    //     if (id_ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "读取芯片ID失败: %s，这是I2C通信问题\n", esp_err_to_name(id_ret));
+    //         i2c_master_bus_rm_device(es8311_dev);
+    //         return false;
+    //     }
         
-        ESP_LOGI(TAG, "芯片ID: 0x%02x", chip_id);
-        if (chip_id != 0x83) {  // 假设正确ID是0x83
-            ESP_LOGW(TAG, "芯片ID不正确，设备可能初始化失败或是假冒芯片\n");
-            i2c_master_bus_rm_device(es8311_dev);
-            return false;
-        }
+    //     ESP_LOGI(TAG, "芯片ID: 0x%02x", chip_id);
+    //     if (chip_id != 0x83) {  // 假设正确ID是0x83
+    //         ESP_LOGW(TAG, "芯片ID不正确，设备可能初始化失败或是假冒芯片\n");
+    //         i2c_master_bus_rm_device(es8311_dev);
+    //         return false;
+    //     }
         
-        // 3. 尝试软复位并验证
-        ESP_LOGI(TAG, "尝试软复位ES8311...");
-        uint8_t reset_data[2] = {0x00, 0x01};  // 假设这是复位寄存器和值
+    //     // 3. 尝试软复位并验证
+    //     ESP_LOGI(TAG, "尝试软复位ES8311...");
+    //     uint8_t reset_data[2] = {0x00, 0x01};  // 假设这是复位寄存器和值
         
-        esp_err_t reset_ret = i2c_master_transmit(es8311_dev, reset_data, 2, I2C_TIMEOUT_MS);
+    //     esp_err_t reset_ret = i2c_master_transmit(es8311_dev, reset_data, 2, I2C_TIMEOUT_MS);
         
-        if (reset_ret != ESP_OK) {
-            ESP_LOGE(TAG, "发送复位命令失败: %s，这是I2C通信问题\n", esp_err_to_name(reset_ret));
-            i2c_master_bus_rm_device(es8311_dev);
-            return false;
-        }
+    //     if (reset_ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "发送复位命令失败: %s，这是I2C通信问题\n", esp_err_to_name(reset_ret));
+    //         i2c_master_bus_rm_device(es8311_dev);
+    //         return false;
+    //     }
         
-        // 等待复位完成
-        vTaskDelay(pdMS_TO_TICKS(100));
+    //     // 等待复位完成
+    //     vTaskDelay(pdMS_TO_TICKS(100));
         
-        // 4. 尝试读取状态寄存器
-        uint8_t status_reg = 0x01;  // 假设这是状态寄存器
-        uint8_t status;
-        esp_err_t status_ret = i2c_master_transmit_receive(es8311_dev, &status_reg, 1, &status, 1, I2C_TIMEOUT_MS);
+    //     // 4. 尝试读取状态寄存器
+    //     uint8_t status_reg = 0x01;  // 假设这是状态寄存器
+    //     uint8_t status;
+    //     esp_err_t status_ret = i2c_master_transmit_receive(es8311_dev, &status_reg, 1, &status, 1, I2C_TIMEOUT_MS);
         
-        if (status_ret == ESP_OK) {
-            ESP_LOGI(TAG, "复位后状态: 0x%02x", status);
-        } else {
-            ESP_LOGE(TAG, "读取状态失败: %s", esp_err_to_name(status_ret));
-        }
+    //     if (status_ret == ESP_OK) {
+    //         ESP_LOGI(TAG, "复位后状态: 0x%02x", status);
+    //     } else {
+    //         ESP_LOGE(TAG, "读取状态失败: %s", esp_err_to_name(status_ret));
+    //     }
         
-        // 清理资源
-        i2c_master_bus_rm_device(es8311_dev);
+    //     // 清理资源
+    //     i2c_master_bus_rm_device(es8311_dev);
         
-        ESP_LOGI(TAG, "诊断完成: I2C通信正常，设备响应正常\n");
-        return true;
+    //     ESP_LOGI(TAG, "诊断完成: I2C通信正常，设备响应正常\n");
+    //     return true;
 
-    }
+    // }
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
@@ -632,28 +425,23 @@ public:
 //         return &audio_codec;
 //     }
 
+    // virtual AudioCodec* GetAudioCodec() override {
+    //     static Es8311AudioCodec audio_codec(
+    //         i2c_bus_, 
+    //         I2C_NUM_0, 
+    //         AUDIO_INPUT_SAMPLE_RATE, 
+    //         AUDIO_OUTPUT_SAMPLE_RATE,
+    //         AUDIO_I2S_GPIO_MCLK,
+    //         AUDIO_I2S_GPIO_BCLK, 
+    //         AUDIO_I2S_GPIO_WS, 
+    //         AUDIO_I2S_GPIO_DOUT, 
+    //         AUDIO_I2S_GPIO_DIN,
+    //         AUDIO_CODEC_PA_PIN, 
+    //         AUDIO_CODEC_ES8311_ADDR);
+    //     return &audio_codec;
+    // }
 
     virtual AudioCodec* GetAudioCodec() override {
-
-        // ESP_LOGI(TAG, "******************************* GetAudioCodec my_board_lcd ********************************");
-        // // 1. 初始化 I2C 总线（如有需要，通常在板子构造函数里做）
-        // static i2c_master_bus_handle_t codec_i2c_bus = nullptr;
-        // if (!codec_i2c_bus) {
-        //     i2c_master_bus_config_t i2c_bus_cfg = {
-        //         .i2c_port = I2C_NUM_0,
-        //         .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-        //         .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
-        //         .clk_source = I2C_CLK_SRC_DEFAULT,
-        //         .glitch_ignore_cnt = 7,
-        //         .intr_priority = 0,
-        //         .trans_queue_depth = 0,
-        //         .flags = {
-        //         .enable_internal_pullup = 1,
-        //         },
-        //     };
-        //     ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus));
-        // }
-
         // 2. 实例化 ES8311 编解码器
         static Es8311AudioCodec audio_codec(
             i2c_bus_,                // I2C 句柄
@@ -668,7 +456,6 @@ public:
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
             GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
             AUDIO_CODEC_ES8311_ADDR,      // ES8311 I2C 地址
-            false   //false                // use_mclk, 可选参数
         );
         return &audio_codec;
     }
