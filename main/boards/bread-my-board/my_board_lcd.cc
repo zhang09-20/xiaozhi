@@ -366,15 +366,60 @@ public:
 
     // }
     // 替代i2c_master_probe的函数
-    bool es8311_device_exists() {
-        uint8_t chip_id;
-        esp_err_t ret = es8311_read_reg(ES8311_CHD1_REGFD, &chip_id);
-        if (ret == ESP_OK && chip_id == 0x83) {
-            ESP_LOGI(TAG, "检测到ES8311，ID: 0x%02X", chip_id);
-            return true;
+    // bool es8311_device_exists() {
+    //     uint8_t chip_id;
+    //     esp_err_t ret = es8311_read_reg(ES8311_CHD1_REGFD, &chip_id);
+    //     if (ret == ESP_OK && chip_id == 0x83) {
+    //         ESP_LOGI(TAG, "检测到ES8311，ID: 0x%02X", chip_id);
+    //         return true;
+    //     }
+    //     ESP_LOGW(TAG, "未检测到ES8311或ID错误: 0x%02X", chip_id);
+    //     return false;
+    // }
+    bool verify_es8311_communication() {
+        ESP_LOGI(TAG, "验证与ES8311的通信...");
+        
+        // 创建ES8311设备句柄
+        i2c_device_config_t es8311_dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = AUDIO_CODEC_ES8311_ADDR,
+            .scl_speed_hz = 100000,  // 100kHz
+        };
+        
+        i2c_master_dev_handle_t es8311_dev = NULL;
+        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
+            return false;
         }
-        ESP_LOGW(TAG, "未检测到ES8311或ID错误: 0x%02X", chip_id);
-        return false;
+        
+        // 读取几个寄存器
+        const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
+        
+        for (size_t i = 0; i < sizeof(regs_to_read); i++) {
+            uint8_t reg_addr = regs_to_read[i];
+            uint8_t reg_val = 0;
+            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
+            
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+            } else {
+                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+            }
+        }
+        
+        // 清理设备句柄
+        i2c_master_bus_rm_device(es8311_dev);
+        
+        // 如果至少有一个寄存器能读取成功，说明通信正常
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "ES8311通信验证成功");
+            return true;
+        } else {
+            ESP_LOGW(TAG, "ES8311通信验证失败");
+            return false;
+        }
     }
 
     //=======================================================================================
@@ -396,7 +441,7 @@ public:
 
         
         //i2c_scan_devices();         
-        es8311_device_exists();
+        verify_es8311_communication();
         //diagnose_es8311_issue();
         // ****************************************************************
 
