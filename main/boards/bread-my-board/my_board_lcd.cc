@@ -94,7 +94,7 @@ private:
             }
         };
 
-        ESP_ERROR_CHECK(i2c_master_set_bus_freq(i2c_bus_, I2C_MASTER_FREQ_HZ));
+        //ESP_ERROR_CHECK(i2c_master_set_bus_freq(i2c_bus_, I2C_MASTER_FREQ_HZ));
 
         ESP_ERROR_CHECK (i2c_new_master_bus(&i2c_mst_config, &i2c_bus_)); // 创建 I2C 总线
         
@@ -113,7 +113,7 @@ private:
         ESP_LOGI(TAG, "开始扫描I2C设备...");
         
         int devices_found = 0;
-        i2c_master_probe(i2c_bus_, 0x18, 200);  // 增加到 200ms
+        //i2c_master_probe(i2c_bus_, 0x18, 200);  // 增加到 200ms
 
         for (uint8_t i = 0x03; i < 0x78; i++) {
             esp_err_t ret = i2c_master_probe(i2c_bus_, i, I2C_TIMEOUT_MS);
@@ -365,7 +365,17 @@ public:
     //     return true;
 
     // }
-
+    // 替代i2c_master_probe的函数
+    bool es8311_device_exists() {
+        uint8_t chip_id;
+        esp_err_t ret = es8311_read_reg(ES8311_CHD1_REGFD, &chip_id);
+        if (ret == ESP_OK && chip_id == 0x83) {
+            ESP_LOGI(TAG, "检测到ES8311，ID: 0x%02X", chip_id);
+            return true;
+        }
+        ESP_LOGW(TAG, "未检测到ES8311或ID错误: 0x%02X", chip_id);
+        return false;
+    }
 
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
@@ -385,8 +395,8 @@ public:
         vTaskDelay(pdMS_TO_TICKS(100));
 
         
-        i2c_scan_devices();
-        
+        //i2c_scan_devices();         
+        es8311_device_exists();
         //diagnose_es8311_issue();
         // ****************************************************************
 
