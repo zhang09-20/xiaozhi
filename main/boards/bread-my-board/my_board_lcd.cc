@@ -372,30 +372,22 @@ public:
 
     // }
     void print_gpio_info(gpio_num_t gpio_num) {
-        gpio_config_t io_conf = {};
+        // 读取GPIO寄存器状态
+        uint32_t reg_val = REG_READ(GPIO_PIN_REG(gpio_num));
         
-        // 获取输入/输出状态
-        bool input_en = (gpio_get_direction(gpio_num) == GPIO_MODE_INPUT);
-        bool output_en = (gpio_get_direction(gpio_num) == GPIO_MODE_OUTPUT);
+        // 获取输入输出状态
+        bool output_en = GPIO.enable & (1 << gpio_num);
+        bool input_en = GPIO.enable_w1tc & (1 << gpio_num);
         
         // 获取开漏状态
-        gpio_drive_cap_t drive_cap;
-        gpio_get_drive_capability(gpio_num, &drive_cap);
-        bool open_drain = (drive_cap == GPIO_DRIVE_CAP_0);
+        bool open_drain = (reg_val & GPIO_PIN_PAD_DRIVER_S) ? 1 : 0;
         
-        // 获取上拉/下拉状态
-        bool pullup = false;
-        bool pulldown = false;
-        gpio_pullup_t pullup_state;
-        gpio_pulldown_t pulldown_state;
-        gpio_get_pull_mode(gpio_num, &pullup_state, &pulldown_state);
-        pullup = (pullup_state == GPIO_PULLUP_ENABLE);
-        pulldown = (pulldown_state == GPIO_PULLDOWN_ENABLE);
+        // 获取上下拉状态
+        bool pullup = (reg_val & GPIO_PIN_PAD_PULL_UP) ? 1 : 0;
+        bool pulldown = (reg_val & GPIO_PIN_PAD_PULL_DOWN) ? 1 : 0;
         
         // 获取中断状态
-        gpio_int_type_t intr_type;
-        gpio_get_intr_type(gpio_num, &intr_type);
-        bool has_interrupt = (intr_type != GPIO_INTR_DISABLE);
+        bool intr = (reg_val & GPIO_PIN_INT_ENA_M) ? 1 : 0;
     
         ESP_LOGI("gpio", "GPIO[%d]| InputEn: %d| OutputEn: %d| OpenDrain: %d| Pullup: %d| Pulldown: %d| Intr:%d",
             gpio_num,
@@ -404,7 +396,7 @@ public:
             open_drain,
             pullup,
             pulldown,
-            has_interrupt
+            intr
         );
     }
 
