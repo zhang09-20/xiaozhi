@@ -109,6 +109,7 @@ private:
     
     void i2c_scan_devices() {
         ESP_LOGI(TAG, "开始扫描I2C设备...");
+        
         int devices_found = 0;
         
         for (uint8_t i = 0x03; i < 0x78; i++) {
@@ -383,13 +384,12 @@ public:
         // vTaskDelay(pdMS_TO_TICKS(100));
 
         
-
         //check_gpio_status();
         //vTaskDelay(pdMS_TO_TICKS(100));
 
         InitializeMclk();
         InitializeI2c();
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(100));
         
         i2c_scan_devices();
         
