@@ -27,7 +27,7 @@
 
 // I2C配置
 #define I2C_MASTER_NUM              0
-#define I2C_MASTER_FREQ_HZ          200000  // 200kHz
+#define I2C_MASTER_FREQ_HZ          100000  // 200kHz
 #define I2C_TIMEOUT_MS              1000
 
 
@@ -88,10 +88,13 @@ private:
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 3,
+            //.clk_speed_hz = I2C_MASTER_FREQ_HZ,  // 设置I2C频率为100kHz
             .flags = {
-                .enable_internal_pullup = true
+                .enable_internal_pullup = false
             }
         };
+
+        ESP_ERROR_CHECK(i2c_master_set_bus_freq(i2c_bus_, I2C_MASTER_FREQ_HZ));
 
         ESP_ERROR_CHECK (i2c_new_master_bus(&i2c_mst_config, &i2c_bus_)); // 创建 I2C 总线
         
@@ -110,7 +113,8 @@ private:
         ESP_LOGI(TAG, "开始扫描I2C设备...");
         
         int devices_found = 0;
-        
+        i2c_master_probe(i2c_bus_, 0x18, 200);  // 增加到 200ms
+
         for (uint8_t i = 0x03; i < 0x78; i++) {
             esp_err_t ret = i2c_master_probe(i2c_bus_, i, I2C_TIMEOUT_MS);
             if (ret == ESP_OK) {
