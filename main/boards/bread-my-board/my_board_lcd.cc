@@ -45,7 +45,6 @@ private:
 
 
 
-
     // // 全局I2C总线句柄 *****************************************************
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;  // 实例变量而非静态变量
@@ -277,15 +276,6 @@ public:
     // }
 
 
-    // //禁用 JTAG 引脚
-    // void disable_jtag_pins(void)
-    // {
-    //     // 重置 JTAG 用到的 GPIO 引脚，释放成普通 GPIO
-    //     gpio_reset_pin(GPIO_NUM_42);
-    //     gpio_reset_pin(GPIO_NUM_43);
-    //     gpio_reset_pin(GPIO_NUM_44);
-    //     gpio_reset_pin(GPIO_NUM_45);
-    // }
 
 
     // //诊断 ES8311 问题
@@ -371,34 +361,7 @@ public:
     //     return true;
 
     // }
-    void print_gpio_info(gpio_num_t gpio_num) {
-        // 读取GPIO寄存器状态
-        uint32_t reg_val = REG_READ(GPIO_PIN_REG(gpio_num));
-        
-        // 获取输入输出状态
-        bool output_en = GPIO.enable & (1 << gpio_num);
-        bool input_en = GPIO.enable_w1tc & (1 << gpio_num);
-        
-        // 获取开漏状态
-        bool open_drain = (reg_val & GPIO_PIN_PAD_DRIVER_S) ? 1 : 0;
-        
-        // 获取上下拉状态
-        bool pullup = (reg_val & GPIO_PIN_PAD_PULL_UP) ? 1 : 0;
-        bool pulldown = (reg_val & GPIO_PIN_PAD_PULL_DOWN) ? 1 : 0;
-        
-        // 获取中断状态
-        bool intr = (reg_val & GPIO_PIN_INT_ENA_M) ? 1 : 0;
-    
-        ESP_LOGI("gpio", "GPIO[%d]| InputEn: %d| OutputEn: %d| OpenDrain: %d| Pullup: %d| Pulldown: %d| Intr:%d",
-            gpio_num,
-            input_en,
-            output_en,
-            open_drain,
-            pullup,
-            pulldown,
-            intr
-        );
-    }
+
 
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
@@ -409,25 +372,14 @@ public:
         InitializeIot();
 
         // ********************* i2c 总线初始化 ****************************
-        // disable_jtag_pins();    // 禁用 JTAG 引脚
-        // vTaskDelay(pdMS_TO_TICKS(100));
-
-        
         //check_gpio_status();
         //vTaskDelay(pdMS_TO_TICKS(100));
+
 
         InitializeMclk();
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(100));
 
-        print_gpio_info(GPIO_NUM_1);
-        print_gpio_info(GPIO_NUM_2);
-        print_gpio_info(GPIO_NUM_42);
-        print_gpio_info(GPIO_NUM_38);
-        print_gpio_info(GPIO_NUM_39);
-        print_gpio_info(GPIO_NUM_40);
-        print_gpio_info(GPIO_NUM_41);
-        vTaskDelay(pdMS_TO_TICKS(100));
         
         i2c_scan_devices();
         
@@ -463,22 +415,6 @@ public:
 // #endif
 //         return &audio_codec;
 //     }
-
-    // virtual AudioCodec* GetAudioCodec() override {
-    //     static Es8311AudioCodec audio_codec(
-    //         i2c_bus_, 
-    //         I2C_NUM_0, 
-    //         AUDIO_INPUT_SAMPLE_RATE, 
-    //         AUDIO_OUTPUT_SAMPLE_RATE,
-    //         AUDIO_I2S_GPIO_MCLK,
-    //         AUDIO_I2S_GPIO_BCLK, 
-    //         AUDIO_I2S_GPIO_WS, 
-    //         AUDIO_I2S_GPIO_DOUT, 
-    //         AUDIO_I2S_GPIO_DIN,
-    //         AUDIO_CODEC_PA_PIN, 
-    //         AUDIO_CODEC_ES8311_ADDR);
-    //     return &audio_codec;
-    // }
 
 
     
