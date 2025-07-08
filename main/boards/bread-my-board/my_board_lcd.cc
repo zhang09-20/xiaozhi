@@ -84,7 +84,7 @@ private:
         i2c_master_bus_config_t i2c_mst_config = {
             .i2c_port = I2C_NUM_0,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-            .scl_io_num = AUDIO_CODEC_I2C_SDC_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
@@ -371,6 +371,38 @@ public:
     //     return true;
 
     // }
+    void print_gpio_info(gpio_num_t gpio_num) {
+        // 获取GPIO配置
+        gpio_config_t io_conf;
+        if (gpio_get_config(gpio_num, &io_conf) != ESP_OK) {
+            return;
+        }
+    
+        // 获取输入/输出使能状态
+        bool input_en = (io_conf.mode & GPIO_MODE_DEF_INPUT) ? 1 : 0;
+        bool output_en = (io_conf.mode & GPIO_MODE_DEF_OUTPUT) ? 1 : 0;
+        
+        // 获取开漏状态
+        bool open_drain = (io_conf.mode & GPIO_MODE_DEF_OD) ? 1 : 0;
+        
+        // 获取上拉/下拉状态
+        bool pullup = io_conf.pull_up_en;
+        bool pulldown = io_conf.pull_down_en;
+        
+        // 获取中断状态
+        gpio_int_type_t intr_type = GPIO.pin[gpio_num].int_type;
+    
+        ESP_LOGI("gpio", "GPIO[%d]| InputEn: %d| OutputEn: %d| OpenDrain: %d| Pullup: %d| Pulldown: %d| Intr:%d",
+            gpio_num,
+            input_en,
+            output_en,
+            open_drain,
+            pullup,
+            pulldown,
+            intr_type != GPIO_INTR_DISABLE ? 1 : 0
+        );
+    }
+
     //=======================================================================================
     //紧凑型 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
@@ -389,6 +421,15 @@ public:
 
         InitializeMclk();
         InitializeI2c();
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        print_gpio_info(GPIO_NUM_1);
+        print_gpio_info(GPIO_NUM_2);
+        print_gpio_info(GPIO_NUM_42);
+        print_gpio_info(GPIO_NUM_38);
+        print_gpio_info(GPIO_NUM_39);
+        print_gpio_info(GPIO_NUM_40);
+        print_gpio_info(GPIO_NUM_41);
         vTaskDelay(pdMS_TO_TICKS(100));
         
         i2c_scan_devices();
@@ -442,6 +483,8 @@ public:
     //     return &audio_codec;
     // }
 
+
+    
     virtual AudioCodec* GetAudioCodec() override {
         // 2. 实例化 ES8311 编解码器
         static Es8311AudioCodec audio_codec(
