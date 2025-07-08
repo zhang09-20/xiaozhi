@@ -46,7 +46,6 @@ private:
 
 
 
-
     // // 全局I2C总线句柄 *****************************************************
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;  // 实例变量而非静态变量
@@ -54,7 +53,7 @@ private:
     void InitializeMclk() {
         ESP_LOGI(TAG, "开始配置MCLK...");
         
-        gpio_num_t mclk_pin = AUDIO_CODEC_I2C_MCLK_PIN;
+        gpio_num_t mclk_pin = AUDIO_CODEC_MCLK_PIN;
         uint32_t freq = 24000000;  // 24MHz
         
         ledc_timer_config_t ledc_timer = {
@@ -64,7 +63,7 @@ private:
             .freq_hz = freq,
             .clk_cfg = LEDC_AUTO_CLK
         };
-        ledc_timer_config(&ledc_timer);     // 配置定时器
+        ESP_ERROR_CHECK (ledc_timer_config(&ledc_timer));     // 配置定时器
         
         ledc_channel_config_t ledc_channel = {
             .gpio_num = mclk_pin,
@@ -74,7 +73,7 @@ private:
             .duty = 1,  // 50%占空比
             .hpoint = 0
         };
-        ledc_channel_config(&ledc_channel); // 配置通道
+        ESP_ERROR_CHECK (ledc_channel_config(&ledc_channel)); // 配置通道
         
         ESP_LOGI(TAG, "MCLK配置完成\n");
     }
@@ -89,7 +88,7 @@ private:
             .clk_source = I2C_CLK_SRC_DEFAULT,
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
-            .trans_queue_depth = 0,
+            .trans_queue_depth = 3,
             .flags = {
                 .enable_internal_pullup = true
             }
@@ -103,6 +102,7 @@ private:
         }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
+        vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
     }
     
     void i2c_scan_devices() {
@@ -126,7 +126,6 @@ private:
         // 扫描到设备后，添加延迟再进行通信
         if (devices_found > 0) {
             ESP_LOGI(TAG, "等待ES8311芯片稳定...");
-            vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
         }
     }
 
@@ -448,7 +447,7 @@ public:
             I2C_NUM_0,                    // I2C 端口号
             AUDIO_INPUT_SAMPLE_RATE,      // 输入采样率
             AUDIO_OUTPUT_SAMPLE_RATE,     // 输出采样率
-            AUDIO_CODEC_I2C_MCLK_PIN,     // MCLK
+            AUDIO_CODEC_MCLK_PIN,     // MCLK
             //GPIO_NUM_NC,
             AUDIO_CODEC_I2S_SCLK_PIN,     // BCLK (SCLK)
             AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
