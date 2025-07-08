@@ -93,13 +93,20 @@ private:
                 .enable_internal_pullup = true
             }
         };
-        
-        esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &i2c_bus_); // 创建 I2C 总线
 
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "I2C总线初始化失败: %s", esp_err_to_name(ret));
-            return;
-        }
+        i2c_master_bus_init_config_t init_config = {
+            .i2c_bus_freq = 100000,  // 设置为100kHz
+            .full_duplex = false
+        };
+
+        ESP_ERROR_CHECK (i2c_new_master_bus(&i2c_mst_config, &init_config, &i2c_bus_)); // 创建 I2C 总线
+        
+        // esp_err_t ret = i2c_new_master_bus(&i2c_mst_config, &i2c_bus_); // 创建 I2C 总线
+
+        // if (ret != ESP_OK) {
+        //     ESP_LOGE(TAG, "I2C总线初始化失败: %s", esp_err_to_name(ret));
+        //     return;
+        // }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
         vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
