@@ -28,7 +28,7 @@
 // I2C配置
 #define I2C_MASTER_NUM              0
 #define I2C_MASTER_FREQ_HZ          100000  // 200kHz
-#define I2C_TIMEOUT_MS              1000
+#define I2C_TIMEOUT_MS              100
 
 
 #define TAG "my_board_lcd"
@@ -110,7 +110,7 @@ private:
         }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
-        vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
+        vTaskDelay(pdMS_TO_TICKS(300));  // 等待100ms
     }
     
     void i2c_scan_devices() {
@@ -119,7 +119,7 @@ private:
         int devices_found = 0;
         //i2c_master_probe(i2c_bus_, 0x18, 200);  // 增加到 200ms
 
-        for (uint8_t i = 0x03; i < 0x78; i++) {
+        for (uint8_t i = 0x15; i < 0x20; i++) {
             esp_err_t ret = i2c_master_probe(i2c_bus_, i, I2C_TIMEOUT_MS);
             if (ret == ESP_OK) {
                 ESP_LOGI(TAG, "找到I2C设备，地址: 0x%02x", i);
