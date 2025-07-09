@@ -28,7 +28,7 @@
 // I2C配置
 #define I2C_MASTER_NUM              0
 #define I2C_MASTER_FREQ_HZ          100000  // 200kHz
-#define I2C_TIMEOUT_MS              100
+#define I2C_TIMEOUT_MS              1000
 
 
 #define TAG "my_board_lcd"
@@ -114,17 +114,28 @@ private:
     }
     
     void i2c_scan_devices() {
-        ESP_LOGI(TAG, "开始扫描I2C设备...");
-        
-        int devices_found = 0;
-        //i2c_master_probe(i2c_bus_, 0x18, 200);  // 增加到 200ms
 
-        for (uint8_t i = 0x15; i < 0x20; i++) {
-            esp_err_t ret = i2c_master_probe(i2c_bus_, i, I2C_TIMEOUT_MS);
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "找到I2C设备，地址: 0x%02x", i);
+        ESP_LOGI(TAG, "开始扫描I2C设备...");
+    
+        int devices_found = 0;
+        
+        // 直接为0x18创建设备句柄
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = 0x18,
+            .scl_speed_hz = 100000,
+        };
+        i2c_master_dev_handle_t dev = NULL;
+        
+        if (i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev) == ESP_OK) {
+            // 尝试读取一个寄存器
+            uint8_t reg = 0xFD;  // ID寄存器
+            uint8_t val;
+            if (i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 1000) == ESP_OK) {
+                ESP_LOGI(TAG, "发现ES8311设备，地址: 0x18，ID: 0x%02x", val);
                 devices_found++;
             }
+            i2c_master_bus_rm_device(dev);
         }
         
         if (devices_found == 0) {
@@ -133,10 +144,33 @@ private:
             ESP_LOGI(TAG, "共发现 %d 个I2C设备", devices_found);
         }
 
-        // 扫描到设备后，添加延迟再进行通信
-        if (devices_found > 0) {
-            ESP_LOGI(TAG, "等待ES8311芯片稳定...\n");
-        }
+
+        
+        // ESP_LOGI(TAG, "开始扫描I2C设备...");
+        
+        // int devices_found = 0;
+        // //i2c_master_probe(i2c_bus_, 0x18, 200);  // 增加到 200ms
+
+        // for (uint8_t i = 0x15; i < 0x1a; i++) {
+        //     esp_err_t ret = i2c_master_probe(i2c_bus_, i, I2C_TIMEOUT_MS);
+        //     if (ret == ESP_OK) {
+        //         ESP_LOGI(TAG, "找到I2C设备，地址: 0x%02x", i);
+        //         devices_found++;
+        //     }else{
+        //         ESP_LOGI(TAG, "未找到I2C设备，地址: 0x%02x", i);
+        //     }
+        // }
+        
+        // if (devices_found == 0) {
+        //     ESP_LOGW(TAG, "未检测到任何I2C设备！请检查连接");
+        // } else {
+        //     ESP_LOGI(TAG, "共发现 %d 个I2C设备", devices_found);
+        // }
+
+        // // 扫描到设备后，添加延迟再进行通信
+        // if (devices_found > 0) {
+        //     ESP_LOGI(TAG, "等待ES8311芯片稳定...\n");
+        // }
     }
 
     // // ********************************************************************
