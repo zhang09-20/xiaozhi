@@ -31,7 +31,9 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     };
     data_if_ = audio_codec_new_i2s_data(&i2s_cfg);
     assert(data_if_ != NULL);
+    ESP_LOGI(TAG, "I2S数据接口创建成功");
 
+        
     // 定义 I2C 控制接口
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = i2c_port,
@@ -40,11 +42,13 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     };
     ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
     assert(ctrl_if_ != NULL);
+    ESP_LOGI(TAG, "I2C控制接口创建成功");
 
+    
     // 定义 GPIO 接口
     gpio_if_ = audio_codec_new_gpio();
     assert(gpio_if_ != NULL);
-
+    ESP_LOGI(TAG, "GPIO接口创建成功");
 
 
     // 创建 es8311 音频编码器

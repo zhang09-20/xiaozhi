@@ -53,7 +53,7 @@ private:
         ESP_LOGI(TAG, "开始配置MCLK...");
         
         gpio_num_t mclk_pin = AUDIO_CODEC_MCLK_PIN;
-        uint32_t freq = 24000000;  // 24MHz
+        uint32_t freq = 12000000;  // 24MHz
         
         ledc_timer_config_t ledc_timer = {
             .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -87,7 +87,7 @@ private:
             .clk_source = I2C_CLK_SRC_DEFAULT,
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
-            .trans_queue_depth = 3,
+            .trans_queue_depth = 10,
             //.clk_speed_hz = I2C_MASTER_FREQ_HZ,  // 设置I2C频率为100kHz
             .flags = {
                 .enable_internal_pullup = false
@@ -104,6 +104,10 @@ private:
         //     ESP_LOGE(TAG, "I2C总线初始化失败: %s", esp_err_to_name(ret));
         //     return;
         // }
+        if(i2c_bus_ == nullptr) {
+            ESP_LOGE(TAG, "I2C总线初始化失败");
+            return;
+        }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
         vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
