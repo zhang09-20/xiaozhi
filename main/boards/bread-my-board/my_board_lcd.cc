@@ -135,7 +135,7 @@ private:
 
         // 扫描到设备后，添加延迟再进行通信
         if (devices_found > 0) {
-            ESP_LOGI(TAG, "等待ES8311芯片稳定...");
+            ESP_LOGI(TAG, "等待ES8311芯片稳定...\n");
         }
     }
 
@@ -418,10 +418,10 @@ public:
         
         // 如果至少有一个寄存器能读取成功，说明通信正常
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "ES8311通信验证成功");
+            ESP_LOGI(TAG, "ES8311通信验证成功\n");
             return true;
         } else {
-            ESP_LOGW(TAG, "ES8311通信验证失败");
+            ESP_LOGW(TAG, "ES8311通信验证失败\n");
             return false;
         }
     }
@@ -444,7 +444,7 @@ public:
         vTaskDelay(pdMS_TO_TICKS(100));
 
         
-        //i2c_scan_devices();         
+        i2c_scan_devices();         
         verify_es8311_communication();
         //diagnose_es8311_issue();
         // ****************************************************************

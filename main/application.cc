@@ -407,10 +407,10 @@ void Application::Start() {
     /* Setup the audio codec */
     auto codec = board.GetAudioCodec();     //创建opus编解码器实例
 
-    volatile int my_test = 1;
-    if(my_test == 1) {    
-        ESP_LOGI(TAG, "******************************* application GetAudioCodec ********************************");
-    }
+    // volatile int my_test = 1;
+    // if(my_test == 1) {    
+    //     ESP_LOGI(TAG, "******************************* application GetAudioCodec ********************************");
+    // }
 
 
     //初始化opus解码器
@@ -727,9 +727,9 @@ void Application::OnClockTimer() {
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
         ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
 
-        // int free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-        // int total_psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
-        // ESP_LOGI(TAG, "Free spiram: %u Total spiram: %u", free_psram, total_psram);
+        int free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        int total_psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+        ESP_LOGI(TAG, "Free spiram: %u Total spiram: %u", free_psram, total_psram);
 
         // If we have synchronized server time, set the status to clock "HH:MM" if the device is idle
         //如果已同步服务器时间且设备处于空闲状态，则更新显示状态为当前时间
