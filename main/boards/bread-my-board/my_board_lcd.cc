@@ -48,25 +48,6 @@ private:
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;  // 实例变量而非静态变量
 
-
-    void ns4150_ctrl_enable(void) {
-        gpio_config_t io_conf = {
-            .pin_bit_mask = (1ULL << AUDIO_CODEC_NS4150_PIN),
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,    // 如果硬件没有外部上拉可以打开这里的上拉
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE,
-        };
-        gpio_config(&io_conf);
-
-        // 拉高使能
-        gpio_set_level(NS4150_CTRL_PIN, 1);
-
-        // 延时等待芯片上电稳定（根据芯片手册调整）
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-    
-
     void InitializeI2c() {
         ESP_LOGI(TAG, "初始化I2C总线...");
         
@@ -289,7 +270,7 @@ public:
 
 
         //InitializeMclk();
-        ns4150_ctrl_enable();
+        //ns4150_ctrl_enable();
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(100));
 
