@@ -17,6 +17,8 @@
 #define AUDIO_CODEC_I2S_DSDIN_PIN   GPIO_NUM_42
 #define AUDIO_CODEC_I2S_SCLK_PIN    GPIO_NUM_40
 #define AUDIO_CODEC_I2S_LRCK_PIN    GPIO_NUM_41
+
+#define AUDIO_CODEC_NS4150_PIN    GPIO_NUM_21
 // ***************************************************************
 
 

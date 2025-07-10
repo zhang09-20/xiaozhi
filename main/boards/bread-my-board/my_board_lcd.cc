@@ -48,33 +48,76 @@ private:
     // // 全局I2C总线句柄 *****************************************************
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;  // 实例变量而非静态变量
-    
+
+    void ns4150_ctrl_enable(void) {
+        gpio_config_t io_conf = {
+            .pin_bit_mask = (1ULL << AUDIO_CODEC_NS4150_PIN),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,    // 如果硬件没有外部上拉可以打开这里的上拉
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&io_conf);
+
+        // 拉高使能
+        gpio_set_level(NS4150_CTRL_PIN, 1);
+
+        // 延时等待芯片上电稳定（根据芯片手册调整）
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
     void InitializeMclk() {
-        ESP_LOGI(TAG, "开始配置MCLK...");
-        
-        gpio_num_t mclk_pin = AUDIO_CODEC_MCLK_PIN;
-        uint32_t freq = 12000000;  // 24MHz
-        
-        ledc_timer_config_t ledc_timer = {
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .duty_resolution = LEDC_TIMER_1_BIT,
-            .timer_num = LEDC_TIMER_0,
-            .freq_hz = freq,
-            .clk_cfg = LEDC_AUTO_CLK
+
+        i2s_chan_handle_t tx_chan;
+        i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+
+        ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_chan, NULL));
+
+        i2s_std_config_t std_cfg = {
+            .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(16000),  // 示例采样率，实际与你音频采样率一致
+            .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+            .gpio_cfg = {
+                .mclk = AUDIO_CODEC_MCLK_PIN,  // 输出 MCLK
+                .bclk = YOUR_BCLK_PIN,
+                .ws   = YOUR_WS_PIN,
+                .dout = YOUR_DATA_OUT,
+                .din  = YOUR_DATA_IN,
+                .invert_flags = {
+                    .mclk_inv = false,
+                },
+            },
         };
-        ESP_ERROR_CHECK (ledc_timer_config(&ledc_timer));     // 配置定时器
+
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_chan, &std_cfg));
+
+        ESP_ERROR_CHECK(i2s_channel_enable(tx_chan));  // MCLK 输出开始
+
+
+        // ESP_LOGI(TAG, "开始配置MCLK...");
         
-        ledc_channel_config_t ledc_channel = {
-            .gpio_num = mclk_pin,
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .channel = LEDC_CHANNEL_0,
-            .timer_sel = LEDC_TIMER_0,
-            .duty = 1,  // 50%占空比
-            .hpoint = 0
-        };
-        ESP_ERROR_CHECK (ledc_channel_config(&ledc_channel)); // 配置通道
+        // gpio_num_t mclk_pin = AUDIO_CODEC_MCLK_PIN;
+        // uint32_t freq = 12000000;  // 24MHz
         
-        ESP_LOGI(TAG, "MCLK配置完成\n");
+        // ledc_timer_config_t ledc_timer = {
+        //     .speed_mode = LEDC_LOW_SPEED_MODE,
+        //     .duty_resolution = LEDC_TIMER_1_BIT,
+        //     .timer_num = LEDC_TIMER_0,
+        //     .freq_hz = freq,
+        //     .clk_cfg = LEDC_AUTO_CLK
+        // };
+        // ESP_ERROR_CHECK (ledc_timer_config(&ledc_timer));     // 配置定时器
+        
+        // ledc_channel_config_t ledc_channel = {
+        //     .gpio_num = mclk_pin,
+        //     .speed_mode = LEDC_LOW_SPEED_MODE,
+        //     .channel = LEDC_CHANNEL_0,
+        //     .timer_sel = LEDC_TIMER_0,
+        //     .duty = 1,  // 50%占空比
+        //     .hpoint = 0
+        // };
+        // ESP_ERROR_CHECK (ledc_channel_config(&ledc_channel)); // 配置通道
+        
+        // ESP_LOGI(TAG, "MCLK配置完成\n");
     }
     
     void InitializeI2c() {
@@ -90,7 +133,7 @@ private:
             .trans_queue_depth = 10,
             //.clk_speed_hz = I2C_MASTER_FREQ_HZ,  // 设置I2C频率为100kHz
             .flags = {
-                .enable_internal_pullup = false
+                .enable_internal_pullup = true
             }
         };
 
@@ -473,7 +516,8 @@ public:
         //vTaskDelay(pdMS_TO_TICKS(100));
 
 
-        InitializeMclk();
+        //InitializeMclk();
+        ns4150_ctrl_enable();
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(100));
 
