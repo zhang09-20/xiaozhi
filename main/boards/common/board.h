@@ -32,6 +32,10 @@ public:
         return *instance;
     }
 
+    // ************************* 诊断音频编解码器 *************************
+    virtual void DiagnoseES8311Audio() = 0;
+    // ************************* 诊断音频编解码器 ************************* 
+
     virtual ~Board() = default;
     virtual std::string GetBoardType() = 0;
     virtual std::string GetUuid() { return uuid_; }

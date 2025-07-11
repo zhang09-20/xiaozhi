@@ -337,8 +337,8 @@ public:
         ESP_LOGI(TAG, "3. 检查PA控制引脚状态");
         gpio_num_t pa_pin = GPIO_NUM_NC;
         
-    #ifdef AUDIO_CODEC_PA_PIN
-        pa_pin = AUDIO_CODEC_PA_PIN;
+    #ifdef AUDIO_CODEC_NS4150_PIN
+        pa_pin = AUDIO_CODEC_NS4150_PIN;
     #endif
         
         if (pa_pin != GPIO_NUM_NC) {
@@ -500,6 +500,7 @@ public:
             AUDIO_CODEC_NS4150_PIN,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
             AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
         );
+        
         return &audio_codec;
     }
     
