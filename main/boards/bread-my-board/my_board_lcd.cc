@@ -19,6 +19,7 @@
 
 // *******************************************************
 #include "audio_codecs/es8311_audio_codec.h"
+#include <math.h>
     // ... 其他 include
 
 // // 函数声明
@@ -253,19 +254,13 @@ public:
         }
     }
 
+
     // ES8311音频编解码器诊断函数
-    void DiagnoseES8311Audio() {
+    void MyWifiBoardLCD::DiagnoseES8311Audio() {
         ESP_LOGI(TAG, "=== ES8311音频编解码器诊断开始 ===");
         
         // 获取音频编解码器实例
         auto codec = Board::GetInstance().GetAudioCodec();
-        Es8311AudioCodec* es8311_codec = dynamic_cast<Es8311AudioCodec*>(codec);
-        
-        // 检查音频编解码器类型
-        if (!es8311_codec) {
-            ESP_LOGE(TAG, "当前音频编解码器不是ES8311类型!");
-            return;
-        }
         
         // 1. 检查I2C通信状态
         ESP_LOGI(TAG, "1. 检查I2C通信状态...");
@@ -286,10 +281,12 @@ public:
         ESP_LOGI(TAG, "2. 读取芯片ID和关键寄存器...");
         
         // 定义需要读取的重要寄存器
-        const struct {
+        struct RegInfo {
             uint8_t addr;
             const char* name;
-        } registers[] = {
+        };
+        
+        const RegInfo registers[] = {
             {0xFD, "芯片ID寄存器"},
             {0x00, "复位寄存器"},
             {0x01, "时钟管理寄存器1"},
@@ -302,20 +299,20 @@ public:
         };
         
         bool id_ok = false;
-        for (const auto& reg : registers) {
-            uint8_t reg_addr = reg.addr;
+        for (size_t i = 0; i < sizeof(registers)/sizeof(registers[0]); i++) {
+            uint8_t reg_addr = registers[i].addr;
             uint8_t reg_val = 0;
             
             ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
             
             if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "  %s (0x%02X): 0x%02X", reg.name, reg.addr, reg_val);
+                ESP_LOGI(TAG, "  %s (0x%02X): 0x%02X", registers[i].name, registers[i].addr, reg_val);
                 // 验证芯片ID (0xFD寄存器应为0x83)
-                if (reg.addr == 0xFD && reg_val == 0x83) {
+                if (registers[i].addr == 0xFD && reg_val == 0x83) {
                     id_ok = true;
                 }
             } else {
-                ESP_LOGE(TAG, "  读取寄存器0x%02X失败: %s", reg.addr, esp_err_to_name(ret));
+                ESP_LOGE(TAG, "  读取寄存器0x%02X失败: %s", registers[i].addr, esp_err_to_name(ret));
             }
         }
         
@@ -330,7 +327,12 @@ public:
         
         // 4. 验证PA控制引脚状态
         ESP_LOGI(TAG, "4. 验证PA控制引脚状态...");
-        gpio_num_t pa_pin = AUDIO_CODEC_PA_PIN; // 假设定义了此宏，请根据实际情况修改
+        gpio_num_t pa_pin = GPIO_NUM_NC; // 使用实际的PA控制引脚
+        
+        #ifdef AUDIO_CODEC_PA_PIN
+        pa_pin = AUDIO_CODEC_PA_PIN;
+        #endif
+        
         if (pa_pin != GPIO_NUM_NC) {
             int level = gpio_get_level(pa_pin);
             ESP_LOGI(TAG, "  功放控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
@@ -353,23 +355,12 @@ public:
         
         ESP_LOGI(TAG, "=== ES8311音频编解码器诊断完成 ===");
         
-        // 7. 尝试输出一些音频数据
-        ESP_LOGI(TAG, "7. 尝试播放测试音...");
-        // 创建一个简单的正弦波测试音
-        const int sample_count = 480; // 30ms @ 16kHz
-        int16_t test_tone[sample_count];
+        // 7. 音频测试只能通过其他方法测试，因为Write是受保护的
+        ESP_LOGI(TAG, "7. 音频测试需要使用其他方法，例如Application::PlayAudio");
+        // 注：我们无法直接调用codec->Write因为它是受保护的
         
-        // 生成1kHz正弦波
-        for (int i = 0; i < sample_count; i++) {
-            test_tone[i] = 16000 * sin(2 * M_PI * 1000 * i / 16000.0);
-        }
-        
-        // 尝试播放3次
-        for (int i = 0; i < 3; i++) {
-            ESP_LOGI(TAG, "  播放测试音 #%d", i+1);
-            codec->Write(test_tone, sample_count);
-            vTaskDelay(pdMS_TO_TICKS(500)); // 等待500ms
-        }
+        // 可以尝试调用更高级API（如果有）来播放声音
+        // Board::GetInstance().PlayTestTone(); // 如果有这样的API
         
         ESP_LOGI(TAG, "诊断程序结束");
     }
