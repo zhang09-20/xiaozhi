@@ -253,6 +253,127 @@ public:
         }
     }
 
+    // ES8311音频编解码器诊断函数
+    void DiagnoseES8311Audio() {
+        ESP_LOGI(TAG, "=== ES8311音频编解码器诊断开始 ===");
+        
+        // 获取音频编解码器实例
+        auto codec = Board::GetInstance().GetAudioCodec();
+        Es8311AudioCodec* es8311_codec = dynamic_cast<Es8311AudioCodec*>(codec);
+        
+        // 检查音频编解码器类型
+        if (!es8311_codec) {
+            ESP_LOGE(TAG, "当前音频编解码器不是ES8311类型!");
+            return;
+        }
+        
+        // 1. 检查I2C通信状态
+        ESP_LOGI(TAG, "1. 检查I2C通信状态...");
+        i2c_device_config_t es8311_dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = AUDIO_CODEC_ES8311_ADDR,
+            .scl_speed_hz = 100000,  // 100kHz
+        };
+        
+        i2c_master_dev_handle_t es8311_dev = NULL;
+        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
+            return;
+        }
+        
+        // 2. 读取芯片ID和关键寄存器
+        ESP_LOGI(TAG, "2. 读取芯片ID和关键寄存器...");
+        
+        // 定义需要读取的重要寄存器
+        const struct {
+            uint8_t addr;
+            const char* name;
+        } registers[] = {
+            {0xFD, "芯片ID寄存器"},
+            {0x00, "复位寄存器"},
+            {0x01, "时钟管理寄存器1"},
+            {0x02, "时钟管理寄存器2"},
+            {0x03, "时钟管理寄存器3"},
+            {0x17, "ADC控制寄存器"},
+            {0x32, "DAC音量寄存器"},
+            {0x31, "DAC静音寄存器"},
+            {0x44, "GPIO控制寄存器"}
+        };
+        
+        bool id_ok = false;
+        for (const auto& reg : registers) {
+            uint8_t reg_addr = reg.addr;
+            uint8_t reg_val = 0;
+            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
+            
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "  %s (0x%02X): 0x%02X", reg.name, reg.addr, reg_val);
+                // 验证芯片ID (0xFD寄存器应为0x83)
+                if (reg.addr == 0xFD && reg_val == 0x83) {
+                    id_ok = true;
+                }
+            } else {
+                ESP_LOGE(TAG, "  读取寄存器0x%02X失败: %s", reg.addr, esp_err_to_name(ret));
+            }
+        }
+        
+        if (!id_ok) {
+            ESP_LOGW(TAG, "芯片ID验证失败！可能不是ES8311或芯片有问题");
+        }
+        
+        // 3. 尝试强制激活音频输出
+        ESP_LOGI(TAG, "3. 尝试激活音频输出...");
+        codec->EnableOutput(true);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        // 4. 验证PA控制引脚状态
+        ESP_LOGI(TAG, "4. 验证PA控制引脚状态...");
+        gpio_num_t pa_pin = AUDIO_CODEC_PA_PIN; // 假设定义了此宏，请根据实际情况修改
+        if (pa_pin != GPIO_NUM_NC) {
+            int level = gpio_get_level(pa_pin);
+            ESP_LOGI(TAG, "  功放控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
+        } else {
+            ESP_LOGI(TAG, "  功放控制引脚未配置");
+        }
+        
+        // 5. 尝试写入DAC音量寄存器提高音量
+        ESP_LOGI(TAG, "5. 尝试直接设置DAC音量...");
+        uint8_t write_buf[2] = {0x32, 0xC0}; // DAC音量寄存器，较高音量
+        ret = i2c_master_transmit(es8311_dev, write_buf, 2, 1000);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "  设置DAC音量成功");
+        } else {
+            ESP_LOGE(TAG, "  设置DAC音量失败: %s", esp_err_to_name(ret));
+        }
+        
+        // 6. 清理资源
+        i2c_master_bus_rm_device(es8311_dev);
+        
+        ESP_LOGI(TAG, "=== ES8311音频编解码器诊断完成 ===");
+        
+        // 7. 尝试输出一些音频数据
+        ESP_LOGI(TAG, "7. 尝试播放测试音...");
+        // 创建一个简单的正弦波测试音
+        const int sample_count = 480; // 30ms @ 16kHz
+        int16_t test_tone[sample_count];
+        
+        // 生成1kHz正弦波
+        for (int i = 0; i < sample_count; i++) {
+            test_tone[i] = 16000 * sin(2 * M_PI * 1000 * i / 16000.0);
+        }
+        
+        // 尝试播放3次
+        for (int i = 0; i < 3; i++) {
+            ESP_LOGI(TAG, "  播放测试音 #%d", i+1);
+            codec->Write(test_tone, sample_count);
+            vTaskDelay(pdMS_TO_TICKS(500)); // 等待500ms
+        }
+        
+        ESP_LOGI(TAG, "诊断程序结束");
+    }
+
     //=======================================================================================
 
 
@@ -273,10 +394,11 @@ public:
         //ns4150_ctrl_enable();
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(100));
-
         
         i2c_scan_devices();         
-        verify_es8311_communication();
+        DiagnoseES8311Audio();
+        
+        //verify_es8311_communication();
         //diagnose_es8311_issue();
         // ****************************************************************
 
