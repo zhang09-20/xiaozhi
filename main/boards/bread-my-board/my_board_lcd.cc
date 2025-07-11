@@ -26,7 +26,7 @@
 
 
 // I2C配置
-#define I2C_MASTER_NUM              0
+//#define I2C_MASTER_NUM              0
 //#define I2C_MASTER_FREQ_HZ          100000  // 200kHz
 #define I2C_TIMEOUT_MS              1000
 
@@ -325,7 +325,7 @@ public:
             AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
             AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
-            GPIO_NUM_NC,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
+            AUDIO_CODEC_NS4150_PIN,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
             AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
         );
         return &audio_codec;
