@@ -400,7 +400,7 @@ public:
             // 如果处于静音状态，尝试取消静音
             if (is_muted) {
                 ESP_LOGI(TAG, "   尝试取消静音...");
-                uint8_t unmute_cmd[2] = {0x31, mute_val & ~0x60};
+                uint8_t unmute_cmd[2] = {0x31, static_cast<uint8_t>(mute_val & ~0x60)};
                 ret = i2c_master_transmit(es8311_dev, unmute_cmd, 2, 1000);
                 if (ret == ESP_OK) {
                     ESP_LOGI(TAG, "   取消静音成功");
@@ -417,9 +417,11 @@ public:
         
         // 恢复原始状态
         if (!was_enabled) {
+            codec->SetOutputVolume(orig_volume);
             codec->EnableOutput(false);
+        } else {
+            codec->SetOutputVolume(orig_volume);
         }
-        codec->SetOutputVolume(orig_volume);
         
         ESP_LOGI(TAG, "=== ES8311音频编解码器诊断完成 ===");
     }
