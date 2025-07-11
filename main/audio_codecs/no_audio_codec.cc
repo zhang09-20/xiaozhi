@@ -15,6 +15,7 @@ NoAudioCodec::~NoAudioCodec() {
     }
 }
 
+// ================================ 双工模式 ================================
 NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
     duplex_ = true;
     input_sample_rate_ = input_sample_rate;
@@ -74,6 +75,7 @@ NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
+// ================================ 双工模式 ==============================
 ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
     duplex_ = true;
     input_sample_rate_ = input_sample_rate;
@@ -131,7 +133,7 @@ ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
-
+// ================================ 单工模式 ==============================
 NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din) {
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
@@ -201,6 +203,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     ESP_LOGI(TAG, "Simplex channels created");
 }
 
+// ================================ 单工模式 ==============================
 NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, i2s_std_slot_mask_t spk_slot_mask, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din, i2s_std_slot_mask_t mic_slot_mask){
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
@@ -271,6 +274,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     ESP_LOGI(TAG, "Simplex channels created");
 }
 
+// ================================ 单工模式 ==============================
 NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_din) {
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
@@ -334,6 +338,12 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
 #endif
     ESP_LOGI(TAG, "Simplex channels created");
 }
+
+
+
+
+
+
 
 int NoAudioCodec::Write(const int16_t* data, int samples) {
     std::vector<int32_t> buffer(samples);

@@ -407,10 +407,13 @@ void Application::Start() {
     /* Setup the audio codec */
     auto codec = board.GetAudioCodec();     //创建opus编解码器实例
 
-    // volatile int my_test = 1;
-    // if(my_test == 1) {    
-    //     ESP_LOGI(TAG, "******************************* application GetAudioCodec ********************************");
-    // }
+
+    
+
+    // ************************* 诊断音频编解码器 *************************
+    board.DiagnoseES8311Audio();
+    // ************************* 诊断音频编解码器 *************************
+
 
 
     //初始化opus解码器

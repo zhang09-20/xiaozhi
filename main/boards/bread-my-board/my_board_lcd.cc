@@ -254,16 +254,32 @@ public:
         }
     }
 
-
-    // ES8311音频编解码器诊断函数
-    void MyWifiBoardLCD::DiagnoseES8311Audio() {
+    // ES8311音频编解码器诊断函数 - 集成到MyWifiBoardLCD类
+    void DiagnoseES8311Audio() {
         ESP_LOGI(TAG, "=== ES8311音频编解码器诊断开始 ===");
         
         // 获取音频编解码器实例
         auto codec = Board::GetInstance().GetAudioCodec();
         
-        // 1. 检查I2C通信状态
-        ESP_LOGI(TAG, "1. 检查I2C通信状态...");
+        // 1. 检查编码器状态
+        ESP_LOGI(TAG, "1. 基本编码器状态检查");
+        ESP_LOGI(TAG, "   输入采样率: %d Hz", codec->input_sample_rate());
+        ESP_LOGI(TAG, "   输出采样率: %d Hz", codec->output_sample_rate());
+        ESP_LOGI(TAG, "   输入通道数: %d", codec->input_channels());
+        ESP_LOGI(TAG, "   输入已启用: %s", codec->input_enabled() ? "是" : "否");
+        ESP_LOGI(TAG, "   输出已启用: %s", codec->output_enabled() ? "是" : "否");
+        ESP_LOGI(TAG, "   输出音量: %d", codec->output_volume());
+        
+        // 2. 使用已存在的I2C总线检查ES8311寄存器
+        ESP_LOGI(TAG, "2. ES8311寄存器检查");
+        
+        // 使用我们已有的I2C总线
+        if (i2c_bus_ == NULL) {
+            ESP_LOGE(TAG, "I2C总线未初始化，无法继续检查");
+            return;
+        }
+        
+        // 创建临时设备句柄用于诊断
         i2c_device_config_t es8311_dev_cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
             .device_address = AUDIO_CODEC_ES8311_ADDR,
@@ -276,9 +292,6 @@ public:
             ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
             return;
         }
-        
-        // 2. 读取芯片ID和关键寄存器
-        ESP_LOGI(TAG, "2. 读取芯片ID和关键寄存器...");
         
         // 定义需要读取的重要寄存器
         struct RegInfo {
@@ -306,13 +319,13 @@ public:
             ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
             
             if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "  %s (0x%02X): 0x%02X", registers[i].name, registers[i].addr, reg_val);
+                ESP_LOGI(TAG, "   %s (0x%02X): 0x%02X", registers[i].name, registers[i].addr, reg_val);
                 // 验证芯片ID (0xFD寄存器应为0x83)
                 if (registers[i].addr == 0xFD && reg_val == 0x83) {
                     id_ok = true;
                 }
             } else {
-                ESP_LOGE(TAG, "  读取寄存器0x%02X失败: %s", registers[i].addr, esp_err_to_name(ret));
+                ESP_LOGE(TAG, "   读取寄存器0x%02X失败: %s", registers[i].addr, esp_err_to_name(ret));
             }
         }
         
@@ -320,49 +333,95 @@ public:
             ESP_LOGW(TAG, "芯片ID验证失败！可能不是ES8311或芯片有问题");
         }
         
-        // 3. 尝试强制激活音频输出
-        ESP_LOGI(TAG, "3. 尝试激活音频输出...");
-        codec->EnableOutput(true);
-        vTaskDelay(pdMS_TO_TICKS(100));
+        // 3. 检查PA控制引脚
+        ESP_LOGI(TAG, "3. 检查PA控制引脚状态");
+        gpio_num_t pa_pin = GPIO_NUM_NC;
         
-        // 4. 验证PA控制引脚状态
-        ESP_LOGI(TAG, "4. 验证PA控制引脚状态...");
-        gpio_num_t pa_pin = GPIO_NUM_NC; // 使用实际的PA控制引脚
-        
-        #ifdef AUDIO_CODEC_PA_PIN
+    #ifdef AUDIO_CODEC_PA_PIN
         pa_pin = AUDIO_CODEC_PA_PIN;
-        #endif
+    #endif
         
         if (pa_pin != GPIO_NUM_NC) {
             int level = gpio_get_level(pa_pin);
-            ESP_LOGI(TAG, "  功放控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
+            ESP_LOGI(TAG, "   PA控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
         } else {
-            ESP_LOGI(TAG, "  功放控制引脚未配置");
+            ESP_LOGI(TAG, "   PA控制引脚未定义，无法检查状态");
         }
         
-        // 5. 尝试写入DAC音量寄存器提高音量
-        ESP_LOGI(TAG, "5. 尝试直接设置DAC音量...");
+        // 4. 尝试激活音频输出
+        ESP_LOGI(TAG, "4. 尝试激活音频输出");
+        bool was_enabled = codec->output_enabled();
+        
+        if (!was_enabled) {
+            ESP_LOGI(TAG, "   当前输出未启用，尝试启用...");
+            codec->EnableOutput(true);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            ESP_LOGI(TAG, "   输出已尝试启用，状态: %s", codec->output_enabled() ? "成功" : "失败");
+            
+            if (pa_pin != GPIO_NUM_NC) {
+                int level = gpio_get_level(pa_pin);
+                ESP_LOGI(TAG, "   启用后PA控制引脚电平: %d", level);
+            }
+        } else {
+            ESP_LOGI(TAG, "   输出已经处于启用状态");
+        }
+        
+        // 5. 设置较高音量
+        int orig_volume = codec->output_volume();
+        ESP_LOGI(TAG, "5. 尝试设置较高音量");
+        ESP_LOGI(TAG, "   原音量: %d", orig_volume);
+        
+        // 尝试设置最大音量
+        codec->SetOutputVolume(100);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        ESP_LOGI(TAG, "   设置后音量: %d", codec->output_volume());
+        
+        // 6. 尝试直接设置DAC寄存器
+        ESP_LOGI(TAG, "6. 尝试直接设置DAC寄存器");
         uint8_t write_buf[2] = {0x32, 0xC0}; // DAC音量寄存器，较高音量
         ret = i2c_master_transmit(es8311_dev, write_buf, 2, 1000);
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "  设置DAC音量成功");
+            ESP_LOGI(TAG, "   设置DAC音量寄存器成功");
         } else {
-            ESP_LOGE(TAG, "  设置DAC音量失败: %s", esp_err_to_name(ret));
+            ESP_LOGE(TAG, "   设置DAC音量寄存器失败: %s", esp_err_to_name(ret));
         }
         
-        // 6. 清理资源
+        // 7. 检查DAC静音状态
+        ESP_LOGI(TAG, "7. 检查DAC静音状态");
+        uint8_t mute_reg = 0x31;
+        uint8_t mute_val = 0;
+        ret = i2c_master_transmit_receive(es8311_dev, &mute_reg, 1, &mute_val, 1, 1000);
+        
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "   DAC静音寄存器值: 0x%02X", mute_val);
+            bool is_muted = (mute_val & 0x60) != 0;
+            ESP_LOGI(TAG, "   DAC当前%s静音", is_muted ? "处于" : "未");
+            
+            // 如果处于静音状态，尝试取消静音
+            if (is_muted) {
+                ESP_LOGI(TAG, "   尝试取消静音...");
+                uint8_t unmute_cmd[2] = {0x31, mute_val & ~0x60};
+                ret = i2c_master_transmit(es8311_dev, unmute_cmd, 2, 1000);
+                if (ret == ESP_OK) {
+                    ESP_LOGI(TAG, "   取消静音成功");
+                } else {
+                    ESP_LOGE(TAG, "   取消静音失败: %s", esp_err_to_name(ret));
+                }
+            }
+        } else {
+            ESP_LOGE(TAG, "   读取静音状态失败: %s", esp_err_to_name(ret));
+        }
+        
+        // 8. 清理资源
         i2c_master_bus_rm_device(es8311_dev);
         
+        // 恢复原始状态
+        if (!was_enabled) {
+            codec->EnableOutput(false);
+        }
+        codec->SetOutputVolume(orig_volume);
+        
         ESP_LOGI(TAG, "=== ES8311音频编解码器诊断完成 ===");
-        
-        // 7. 音频测试只能通过其他方法测试，因为Write是受保护的
-        ESP_LOGI(TAG, "7. 音频测试需要使用其他方法，例如Application::PlayAudio");
-        // 注：我们无法直接调用codec->Write因为它是受保护的
-        
-        // 可以尝试调用更高级API（如果有）来播放声音
-        // Board::GetInstance().PlayTestTone(); // 如果有这样的API
-        
-        ESP_LOGI(TAG, "诊断程序结束");
     }
 
     //=======================================================================================
@@ -386,9 +445,9 @@ public:
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(100));
         
-        i2c_scan_devices();         
-        DiagnoseES8311Audio();
-        
+        i2c_scan_devices();  
+
+        //DiagnoseES8311Audio();
         //verify_es8311_communication();
         //diagnose_es8311_issue();
         // ****************************************************************
