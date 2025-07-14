@@ -144,7 +144,7 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
             .slot_mode = I2S_SLOT_MODE_STEREO,
             .slot_mask = I2S_STD_SLOT_BOTH,
             .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .ws_pol = false,
+            .ws_pol = false,        //等会可能改这个
             .bit_shift = true,
             #ifdef   I2S_HW_VERSION_2   
                 .left_align = true,

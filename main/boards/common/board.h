@@ -33,7 +33,7 @@ public:
     }
 
     // ************************* 诊断音频编解码器 *************************
-    virtual void DiagnoseES8311Audio() = 0;
+    virtual void DiagnoseES8311Audio() {};
     // ************************* 诊断音频编解码器 ************************* 
 
     virtual ~Board() = default;

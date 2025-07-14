@@ -308,7 +308,10 @@ public:
             {0x17, "ADC控制寄存器"},
             {0x32, "DAC音量寄存器"},
             {0x31, "DAC静音寄存器"},
-            {0x44, "GPIO控制寄存器"}
+            {0x44, "GPIO控制寄存器"},
+            
+            {0x09, "DAC接口格式寄存器"},
+            {0x0A, "ADC接口格式寄存器"}
         };
         
         bool id_ok = false;
@@ -503,6 +506,7 @@ public:
             AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
         );
         
+        //DiagnoseES8311Audio();
         return &audio_codec;
     }
     
