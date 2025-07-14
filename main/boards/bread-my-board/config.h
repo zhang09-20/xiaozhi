@@ -3,8 +3,8 @@
 
 #include <driver/gpio.h>
 
-#define AUDIO_INPUT_SAMPLE_RATE  48000
-#define AUDIO_OUTPUT_SAMPLE_RATE 48000
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
 // ES8311 引脚定义 ************************************************
 #define AUDIO_CODEC_ES8311_ADDR     0x18
