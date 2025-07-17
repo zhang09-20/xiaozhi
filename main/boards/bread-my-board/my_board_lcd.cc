@@ -335,20 +335,20 @@ public:
             ESP_LOGW(TAG, "芯片ID验证失败！可能不是ES8311或芯片有问题");
         }
         
-        // 3. 检查PA控制引脚
-        ESP_LOGI(TAG, "3. 检查PA控制引脚状态");
-        gpio_num_t pa_pin = GPIO_NUM_NC;
+    //     // 3. 检查PA控制引脚
+    //     ESP_LOGI(TAG, "3. 检查PA控制引脚状态");
+    //     gpio_num_t pa_pin = GPIO_NUM_NC;
         
-    #ifdef AUDIO_CODEC_NS4150_PIN
-        pa_pin = AUDIO_CODEC_NS4150_PIN;
-    #endif
+    // #ifdef AUDIO_CODEC_NS4150_PIN
+    //     pa_pin = AUDIO_CODEC_NS4150_PIN;
+    // #endif
         
-        if (pa_pin != GPIO_NUM_NC) {
-            int level = gpio_get_level(pa_pin);
-            ESP_LOGI(TAG, "   PA控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
-        } else {
-            ESP_LOGI(TAG, "   PA控制引脚未定义，无法检查状态");
-        }
+    //     if (pa_pin != GPIO_NUM_NC) {
+    //         int level = gpio_get_level(pa_pin);
+    //         ESP_LOGI(TAG, "   PA控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
+    //     } else {
+    //         ESP_LOGI(TAG, "   PA控制引脚未定义，无法检查状态");
+    //     }
         
         // 4. 尝试激活音频输出
         ESP_LOGI(TAG, "4. 尝试激活音频输出");
@@ -360,10 +360,10 @@ public:
             vTaskDelay(pdMS_TO_TICKS(100));
             ESP_LOGI(TAG, "   输出已尝试启用，状态: %s", codec->output_enabled() ? "成功" : "失败");
             
-            if (pa_pin != GPIO_NUM_NC) {
-                int level = gpio_get_level(pa_pin);
-                ESP_LOGI(TAG, "   启用后PA控制引脚电平: %d", level);
-            }
+            // if (pa_pin != GPIO_NUM_NC) {
+            //     int level = gpio_get_level(pa_pin);
+            //     ESP_LOGI(TAG, "   启用后PA控制引脚电平: %d", level);
+            // }
         } else {
             ESP_LOGI(TAG, "   输出已经处于启用状态");
         }
@@ -501,7 +501,8 @@ public:
             AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
             AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
             AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
-            AUDIO_CODEC_NS4150_PIN,                  // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
+            GPIO_NUM_NC,                 // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
+            //AUDIO_CODEC_NS4150_PIN,  
             AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
         );
         
