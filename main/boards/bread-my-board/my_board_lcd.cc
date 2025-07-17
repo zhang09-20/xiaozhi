@@ -43,6 +43,15 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
 
+    //i2c_master_bus_handle_t display_i2c_bus_;
+    //esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+    //esp_lcd_panel_handle_t panel_ = nullptr;
+    //Display* display_ = nullptr;
+
+    Button boot_button_;
+    Button touch_button_;
+    Button volume_up_button_;
+    Button volume_down_button_;
 
 
     // // 全局I2C总线句柄 *****************************************************
@@ -185,7 +194,7 @@ private:
     }
 
 
-    //初始化 开机按钮，点击开机按钮，重置 wifi 配置，并进入聊天状态
+    // 初始化 音量加减按钮 =================================================
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -194,7 +203,54 @@ private:
             }
             app.ToggleChatState();
         });
+        touch_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
+        });
+        touch_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
+        });
+
+        volume_up_button_.OnClick([this]() {
+            auto codec = GetAudioCodec();
+            auto volume = codec->output_volume() + 10;
+            if (volume > 100) {
+                volume = 100;
+            }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+        });
+
+        volume_up_button_.OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+        });
+
+        volume_down_button_.OnClick([this]() {
+            auto codec = GetAudioCodec();
+            auto volume = codec->output_volume() - 10;
+            if (volume < 0) {
+                volume = 0;
+            }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+        });
+
+        volume_down_button_.OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(0);
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+        });
     }
+
+    // //初始化 开机按钮，点击开机按钮，重置 wifi 配置，并进入聊天状态
+    // void InitializeButtons() {
+    //     boot_button_.OnClick([this]() {
+    //         auto& app = Application::GetInstance();
+    //         if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+    //             ResetWifiConfiguration();
+    //         }
+    //         app.ToggleChatState();
+    //     });
+    // }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
@@ -208,6 +264,7 @@ public:
 
     //======================================================================
 
+    // 验证与ES8311的通信，读取寄存器的值
     bool verify_es8311_communication() {
         ESP_LOGI(TAG, "验证与ES8311的通信...");
         
@@ -254,206 +311,27 @@ public:
         }
     }
 
-    // ES8311音频编解码器诊断函数 - 集成到MyWifiBoardLCD类
-    void DiagnoseES8311Audio() {
-        ESP_LOGI(TAG, "=== ES8311音频编解码器诊断开始 ===");
-        
-        // 获取音频编解码器实例
-        auto codec = Board::GetInstance().GetAudioCodec();
-        
-        // 1. 检查编码器状态
-        ESP_LOGI(TAG, "1. 基本编码器状态检查");
-        ESP_LOGI(TAG, "   输入采样率: %d Hz", codec->input_sample_rate());
-        ESP_LOGI(TAG, "   输出采样率: %d Hz", codec->output_sample_rate());
-        ESP_LOGI(TAG, "   输入通道数: %d", codec->input_channels());
-        ESP_LOGI(TAG, "   输入已启用: %s", codec->input_enabled() ? "是" : "否");
-        ESP_LOGI(TAG, "   输出已启用: %s", codec->output_enabled() ? "是" : "否");
-        ESP_LOGI(TAG, "   输出音量: %d", codec->output_volume());
-        
-        // 2. 使用已存在的I2C总线检查ES8311寄存器
-        ESP_LOGI(TAG, "2. ES8311寄存器检查");
-        
-        // 使用我们已有的I2C总线
-        if (i2c_bus_ == NULL) {
-            ESP_LOGE(TAG, "I2C总线未初始化，无法继续检查");
-            return;
-        }
-        
-        // 创建临时设备句柄用于诊断
-        i2c_device_config_t es8311_dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = AUDIO_CODEC_ES8311_ADDR,
-            .scl_speed_hz = 100000,  // 100kHz
-        };
-        
-        i2c_master_dev_handle_t es8311_dev = NULL;
-        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
-            return;
-        }
-        
-        // 定义需要读取的重要寄存器
-        struct RegInfo {
-            uint8_t addr;
-            const char* name;
-        };
-        
-        const RegInfo registers[] = {
-            {0xFD, "芯片ID寄存器"},
-            {0x00, "复位寄存器"},
-            {0x01, "时钟管理寄存器1"},
-            {0x02, "时钟管理寄存器2"},
-            {0x03, "时钟管理寄存器3"},
-            {0x17, "ADC控制寄存器"},
-            {0x32, "DAC音量寄存器"},
-            {0x31, "DAC静音寄存器"},
-            {0x44, "GPIO控制寄存器"},
-            {0x09, "DAC接口格式寄存器"},
-            {0x0A, "ADC接口格式寄存器"},
-        };
-        
-        bool id_ok = false;
-        for (size_t i = 0; i < sizeof(registers)/sizeof(registers[0]); i++) {
-            uint8_t reg_addr = registers[i].addr;
-            uint8_t reg_val = 0;
-            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
-            
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "   %s (0x%02X): 0x%02X", registers[i].name, registers[i].addr, reg_val);
-                // 验证芯片ID (0xFD寄存器应为0x83)
-                if (registers[i].addr == 0xFD && reg_val == 0x83) {
-                    id_ok = true;
-                }
-            } else {
-                ESP_LOGE(TAG, "   读取寄存器0x%02X失败: %s", registers[i].addr, esp_err_to_name(ret));
-            }
-        }
-        
-        if (!id_ok) {
-            ESP_LOGW(TAG, "芯片ID验证失败！可能不是ES8311或芯片有问题");
-        }
-        
-    //     // 3. 检查PA控制引脚
-    //     ESP_LOGI(TAG, "3. 检查PA控制引脚状态");
-    //     gpio_num_t pa_pin = GPIO_NUM_NC;
-        
-    // #ifdef AUDIO_CODEC_NS4150_PIN
-    //     pa_pin = AUDIO_CODEC_NS4150_PIN;
-    // #endif
-        
-    //     if (pa_pin != GPIO_NUM_NC) {
-    //         int level = gpio_get_level(pa_pin);
-    //         ESP_LOGI(TAG, "   PA控制引脚 (GPIO %d) 电平: %d", pa_pin, level);
-    //     } else {
-    //         ESP_LOGI(TAG, "   PA控制引脚未定义，无法检查状态");
-    //     }
-        
-        // 4. 尝试激活音频输出
-        ESP_LOGI(TAG, "4. 尝试激活音频输出");
-        bool was_enabled = codec->output_enabled();
-        
-        if (!was_enabled) {
-            ESP_LOGI(TAG, "   当前输出未启用，尝试启用...");
-            codec->EnableOutput(true);
-            vTaskDelay(pdMS_TO_TICKS(100));
-            ESP_LOGI(TAG, "   输出已尝试启用，状态: %s", codec->output_enabled() ? "成功" : "失败");
-            
-            // if (pa_pin != GPIO_NUM_NC) {
-            //     int level = gpio_get_level(pa_pin);
-            //     ESP_LOGI(TAG, "   启用后PA控制引脚电平: %d", level);
-            // }
-        } else {
-            ESP_LOGI(TAG, "   输出已经处于启用状态");
-        }
-        
-        // 5. 设置较高音量
-        int orig_volume = codec->output_volume();
-        ESP_LOGI(TAG, "5. 尝试设置较高音量");
-        ESP_LOGI(TAG, "   原音量: %d", orig_volume);
-        
-        // 尝试设置最大音量
-        codec->SetOutputVolume(100);
-        vTaskDelay(pdMS_TO_TICKS(50));
-        ESP_LOGI(TAG, "   设置后音量: %d", codec->output_volume());
-        
-        // 6. 尝试直接设置DAC寄存器
-        ESP_LOGI(TAG, "6. 尝试直接设置DAC寄存器");
-        uint8_t write_buf[2] = {0x32, 0xC0}; // DAC音量寄存器，较高音量
-        ret = i2c_master_transmit(es8311_dev, write_buf, 2, 1000);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "   设置DAC音量寄存器成功");
-        } else {
-            ESP_LOGE(TAG, "   设置DAC音量寄存器失败: %s", esp_err_to_name(ret));
-        }
-        
-        // 7. 检查DAC静音状态
-        ESP_LOGI(TAG, "7. 检查DAC静音状态");
-        uint8_t mute_reg = 0x31;
-        uint8_t mute_val = 0;
-        ret = i2c_master_transmit_receive(es8311_dev, &mute_reg, 1, &mute_val, 1, 1000);
-        
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "   DAC静音寄存器值: 0x%02X", mute_val);
-            bool is_muted = (mute_val & 0x60) != 0;
-            ESP_LOGI(TAG, "   DAC当前%s静音", is_muted ? "处于" : "未");
-            
-            // 如果处于静音状态，尝试取消静音
-            if (is_muted) {
-                ESP_LOGI(TAG, "   尝试取消静音...");
-                uint8_t unmute_cmd[2] = {0x31, static_cast<uint8_t>(mute_val & ~0x60)};
-                ret = i2c_master_transmit(es8311_dev, unmute_cmd, 2, 1000);
-                if (ret == ESP_OK) {
-                    ESP_LOGI(TAG, "   取消静音成功");
-                } else {
-                    ESP_LOGE(TAG, "   取消静音失败: %s", esp_err_to_name(ret));
-                }
-            }
-        } else {
-            ESP_LOGE(TAG, "   读取静音状态失败: %s", esp_err_to_name(ret));
-        }
-        
-        // 8. 清理资源
-        i2c_master_bus_rm_device(es8311_dev);
-        
-        // 恢复原始状态
-        if (!was_enabled) {
-            codec->SetOutputVolume(orig_volume);
-            codec->EnableOutput(false);
-        } else {
-            codec->SetOutputVolume(orig_volume);
-        }
-        
-        ESP_LOGI(TAG, "=== ES8311音频编解码器诊断完成 ===");
-    }
-
     //=======================================================================================
 
 
 
     //紧凑型 wifi 板，lcd板，构造函数
-    MyWifiBoardLCD() : boot_button_(BOOT_BUTTON_GPIO) {
+    MyWifiBoardLCD() : 
+        boot_button_(BOOT_BUTTON_GPIO),
+        touch_button_(TOUCH_BUTTON_GPIO),
+        volume_up_button_(VOLUME_UP_BUTTON_GPIO),
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+
         InitializeSpi();
         InitializeLcdDisplay();
-        InitializeButtons();
+        //InitializeButtons();
         InitializeIot();
 
         // ********************* i2c 总线初始化 ****************************
-        //check_gpio_status();
-        //vTaskDelay(pdMS_TO_TICKS(100));
-
-
-        //InitializeMclk();
-        //ns4150_ctrl_enable();
         InitializeI2c();
-        vTaskDelay(pdMS_TO_TICKS(100));
-        
+        vTaskDelay(pdMS_TO_TICKS(100));      
         i2c_scan_devices();  
 
-        //DiagnoseES8311Audio();
-        //verify_es8311_communication();
-        //diagnose_es8311_issue();
         // ****************************************************************
 
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
@@ -472,7 +350,6 @@ public:
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
 
     //获取 音频编码器
-
 
 //     virtual AudioCodec* GetAudioCodec() override {
 // #ifdef AUDIO_I2S_METHOD_SIMPLEX
