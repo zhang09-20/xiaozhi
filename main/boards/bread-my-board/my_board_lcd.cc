@@ -53,7 +53,8 @@ private:
     //esp_lcd_panel_handle_t panel_ = nullptr;
     //Display* display_ = nullptr;
 
-    Button boot_button_;
+    //Button boot_button_;
+    
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
