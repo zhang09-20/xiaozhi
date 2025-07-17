@@ -17,6 +17,11 @@
 #include <driver/spi_common.h>
 #include <driver/ledc.h>
 
+#include "assets/lang_config.h"
+
+
+
+
 // *******************************************************
 #include "audio_codecs/es8311_audio_codec.h"
 #include <math.h>
