@@ -320,7 +320,7 @@ public:
     //=======================================================================================
 
 
-    
+
 
     //紧凑型 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : 
@@ -371,7 +371,6 @@ public:
 //     }
 
 
-    
     virtual AudioCodec* GetAudioCodec() override {
         // 2. 实例化 ES8311 编解码器
         static Es8311AudioCodec audio_codec(
