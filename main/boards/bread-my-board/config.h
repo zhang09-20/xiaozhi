@@ -7,7 +7,7 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
 // ES8311 引脚定义 ************************************************
-#define AUDIO_CODEC_ES8311_ADDR     0x18
+#define AUDIO_CODEC_ES8311_ADDR     0x30
 #define AUDIO_CODEC_I2C_SDA_PIN     GPIO_NUM_1
 #define AUDIO_CODEC_I2C_SCL_PIN     GPIO_NUM_2
 

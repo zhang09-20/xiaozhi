@@ -89,7 +89,8 @@ private:
         }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
-        vTaskDelay(pdMS_TO_TICKS(300));  // 等待100ms
+
+        vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms，确保i2c从设备上电成功
     }
     
 
@@ -216,6 +217,7 @@ private:
             Application::GetInstance().StopListening();
         });
 
+        //音量加按键 +10
         volume_up_button_.OnClick([this]() {
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
@@ -225,12 +227,13 @@ private:
             codec->SetOutputVolume(volume);
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
-
+        //长按 加按键 +> 100 最大音量
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
+        //音量减按键 -10
         volume_down_button_.OnClick([this]() {
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
@@ -240,7 +243,7 @@ private:
             codec->SetOutputVolume(volume);
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
-
+        //长按 减按键 -> 0 静音
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
@@ -289,10 +292,10 @@ public:
         }
         
         // 读取几个寄存器
-        const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
+        //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-        for (size_t i = 0; i < sizeof(regs_to_read); i++) {
-            uint8_t reg_addr = regs_to_read[i];
+        for (size_t i = 0x00; i < 0x05; i++) {
+            uint8_t reg_addr = i;
             uint8_t reg_val = 0;
             
             ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
@@ -331,13 +334,15 @@ public:
 
         InitializeSpi();
         InitializeLcdDisplay();
-        //InitializeButtons();
+        InitializeButtons();
         InitializeIot();
 
         // ********************* i2c 总线初始化 ****************************
         InitializeI2c();
-        vTaskDelay(pdMS_TO_TICKS(100));      
-        i2c_scan_devices();  
+        //vTaskDelay(pdMS_TO_TICKS(100));      
+        i2c_scan_devices();
+
+        verify_es8311_communication();
 
         // ****************************************************************
 
