@@ -58,21 +58,21 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
 
     // =====================================================
     /* Create control interface with I2C bus handle */
-    audio_codec_i2c_cfg_t i2c_cfg = {
+    audio_codec_i2c_cfg_t i2c_cfg_7210 = {
         .port = i2c_port,
         .addr = es7210_addr,
-        .bus_handle = i2c_bus_handle,
+        .bus_handle = i2c_master_handle,
     };
-    ctrl_if_7210 = audio_codec_new_i2c_ctrl(&i2c_cfg);
+    ctrl_if_7210 = audio_codec_new_i2c_ctrl(&i2c_cfg_7210);
     assert(ctrl_if_7210);
 
     /* Create data interface with I2S bus handle */
-    audio_codec_i2s_cfg_t i2s_cfg = {
+    audio_codec_i2s_cfg_t i2s_cfg_7210 = {
         .port = I2S_NUM_0,
         .rx_handle = rx_handle_,
         .tx_handle = nullptr,
     };
-    data_if_7210 = audio_codec_new_i2s_data(&i2s_cfg);
+    data_if_7210 = audio_codec_new_i2s_data(&i2s_cfg_7210);
     assert(data_if_7210);
 
     /* Create ES7210 interface handle */
