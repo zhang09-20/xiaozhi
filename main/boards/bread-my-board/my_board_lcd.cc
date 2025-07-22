@@ -23,7 +23,8 @@
 
 
 // *******************************************************
-#include "audio_codecs/es8311_audio_codec.h"
+#include "audio/codecs/es8311_audio_codec.h"
+#include "audio/codecs/i2s_es7210_audio_codec.h"
 #include <math.h>
     // ... 其他 include
 
@@ -61,11 +62,10 @@ private:
 
 
     // // 全局I2C总线句柄 *****************************************************
-
-    i2c_master_bus_handle_t i2c_bus_ = nullptr;  // 实例变量而非静态变量
+    i2c_master_bus_handle_t i2c_bus_ = nullptr;         // 实例变量而非静态变量
 
     void InitializeI2c() {
-        ESP_LOGI(TAG, "初始化I2C总线...");
+        ESP_LOGI(TAG, "初始化codec I2C总线...");
         
         i2c_master_bus_config_t i2c_mst_config = {
             .i2c_port = (i2c_port_t)0,
@@ -92,45 +92,93 @@ private:
 
         vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms，确保i2c从设备上电成功
     }
-    
 
-    void i2c_scan_devices() {
 
-        ESP_LOGI(TAG, "开始扫描I2C设备...");
-    
-        int devices_found = 0;
-        
-        // 直接为0x18创建设备句柄
-        i2c_device_config_t dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = 0x18,
-            .scl_speed_hz = 100000,
+
+#ifdef OLED_TYPE_SSD1306_I2C_128X64_test
+    i2c_master_bus_handle_t display_i2c_bus_ = nullptr;  // 实例变量而非静态变量
+
+    void InitializeDisplayI2c() {
+        ESP_LOGI(TAG, "初始化display I2C总线...");
+        i2c_master_bus_config_t bus_config = {
+            .i2c_port = (i2c_port_t)1,
+            .sda_io_num = DISPLAY_SDA_PIN,
+            .scl_io_num = DISPLAY_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
         };
-        i2c_master_dev_handle_t dev = NULL;
-        
-        if (i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev) == ESP_OK) {
-            // 尝试读取一个寄存器
-            uint8_t reg = 0xFD;  // ID寄存器
-            uint8_t val;
-            if (i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 1000) == ESP_OK) {
-                ESP_LOGI(TAG, "发现ES8311设备，地址: 0x18，ID: 0x%02x", val);
-                devices_found++;
-            }
-            i2c_master_bus_rm_device(dev);
+        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+
+        if(display_i2c_bus_ == nullptr) {
+            ESP_LOGE(TAG, "display I2C总线初始化失败");
+            return;
         }
         
-        if (devices_found == 0) {
-            ESP_LOGW(TAG, "未检测到任何I2C设备！请检查连接");
-        } else {
-            ESP_LOGI(TAG, "共发现 %d 个I2C设备", devices_found);
+        ESP_LOGI(TAG, "display I2C总线初始化成功\n");
+    }
+
+    void InitializeSsd1306Display() {
+        // SSD1306 config
+        esp_lcd_panel_io_i2c_config_t io_config = {
+            .dev_addr = DISPLAY_ADDR,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 6,
+            .lcd_cmd_bits = 8,
+            .lcd_param_bits = 8,
+            .flags = {
+                .dc_low_on_data = 0,
+                .disable_control_phase = 0,
+            },
+            .scl_speed_hz = 400 * 1000,
+        };
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
+
+        ESP_LOGI(TAG, "Install SSD1306 driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = -1;
+        panel_config.bits_per_pixel = 1;
+
+        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
+            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
+        };
+        panel_config.vendor_config = &ssd1306_config;
+
+#ifdef SH1106
+        ESP_ERROR_CHECK(esp_lcd_new_panel_sh1106(panel_io_, &panel_config, &panel_));
+#else
+        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
+#endif
+        ESP_LOGI(TAG, "SSD1306 driver installed");
+
+        // Reset the display
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+        if (esp_lcd_panel_init(panel_) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize display");
+            display_ = new NoDisplay();
+            return;
         }
 
+        // Set the display to on
+        ESP_LOGI(TAG, "Turning display on");
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+            {&font_puhui_14_1, &font_awesome_14_1});
     }
+
+#endif
 
     // // ********************************************************************
 
-
-
+#ifdef LCD_TYPE_ST7789_SPI_240X320_my
     //初始化 spi 总线
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -178,8 +226,6 @@ private:
 #endif
         
         esp_lcd_panel_reset(panel);
- 
-
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
@@ -187,11 +233,13 @@ private:
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
+
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_16_4,
                                         .icon_font = &font_awesome_16_4,
+
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
                                         .emoji_font = font_emoji_32_init(),
 #else
@@ -200,57 +248,10 @@ private:
                                     });
     }
 
+#endif
 
-    // 初始化 音量加减按钮 =================================================
-    void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
-        touch_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        touch_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
 
-        //音量加按键 +10
-        volume_up_button_.OnClick([this]() {
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() + 10;
-            if (volume > 100) {
-                volume = 100;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
-        });
-        //长按 加按键 +> 100 最大音量
-        volume_up_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
-        });
-
-        //音量减按键 -10
-        volume_down_button_.OnClick([this]() {
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() - 10;
-            if (volume < 0) {
-                volume = 0;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
-        });
-        //长按 减按键 -> 0 静音
-        volume_down_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
-        });
-    }
-
-    // //初始化 开机按钮，点击开机按钮，重置 wifi 配置，并进入聊天状态
+    // // 初始化 音量加减按钮 =================================================
     // void InitializeButtons() {
     //     boot_button_.OnClick([this]() {
     //         auto& app = Application::GetInstance();
@@ -259,7 +260,56 @@ private:
     //         }
     //         app.ToggleChatState();
     //     });
+    //     touch_button_.OnPressDown([this]() {
+    //         Application::GetInstance().StartListening();
+    //     });
+    //     touch_button_.OnPressUp([this]() {
+    //         Application::GetInstance().StopListening();
+    //     });
+
+    //     //音量加按键 +10
+    //     volume_up_button_.OnClick([this]() {
+    //         auto codec = GetAudioCodec();
+    //         auto volume = codec->output_volume() + 10;
+    //         if (volume > 100) {
+    //             volume = 100;
+    //         }
+    //         codec->SetOutputVolume(volume);
+    //         GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+    //     });
+    //     //长按 加按键 +> 100 最大音量
+    //     volume_up_button_.OnLongPress([this]() {
+    //         GetAudioCodec()->SetOutputVolume(100);
+    //         GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+    //     });
+
+    //     //音量减按键 -10
+    //     volume_down_button_.OnClick([this]() {
+    //         auto codec = GetAudioCodec();
+    //         auto volume = codec->output_volume() - 10;
+    //         if (volume < 0) {
+    //             volume = 0;
+    //         }
+    //         codec->SetOutputVolume(volume);
+    //         GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+    //     });
+    //     //长按 减按键 -> 0 静音
+    //     volume_down_button_.OnLongPress([this]() {
+    //         GetAudioCodec()->SetOutputVolume(0);
+    //         GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+    //     });
     // }
+
+    //初始化 开机按钮，点击开机按钮，重置 wifi 配置，并进入聊天状态
+    void InitializeButtons() {
+        boot_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        });
+    }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
@@ -273,83 +323,89 @@ public:
 
     //======================================================================
 
-    // 验证与ES8311的通信，读取寄存器的值
-    bool verify_es8311_communication() {
-        ESP_LOGI(TAG, "验证与ES8311的通信...");
+    // // 验证与ES8311的通信，读取寄存器的值
+    // bool verify_es8311_communication() {
+    //     ESP_LOGI(TAG, "验证与ES8311的通信...");
         
-        // 创建ES8311设备句柄
-        i2c_device_config_t es8311_dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = AUDIO_CODEC_ES8311_ADDR,
-            .scl_speed_hz = 100000,  // 100kHz
-        };
+    //     // 创建ES8311设备句柄
+    //     i2c_device_config_t es8311_dev_cfg = {
+    //         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+    //         .device_address = AUDIO_CODEC_ES8311_ADDR,
+    //         .scl_speed_hz = 100000,  // 100kHz
+    //     };
         
-        i2c_master_dev_handle_t es8311_dev = NULL;
-        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
-            return false;
-        }
+    //     i2c_master_dev_handle_t es8311_dev = NULL;
+    //     esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
+    //     if (ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
+    //         return false;
+    //     }
         
-        // 读取几个寄存器
-        //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
+    //     // 读取几个寄存器
+    //     //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-        for (size_t i = 0x00; i < 0x05; i++) {
-            uint8_t reg_addr = i;
-            uint8_t reg_val = 0;
+    //     for (size_t i = 0x00; i < 0x05; i++) {
+    //         uint8_t reg_addr = i;
+    //         uint8_t reg_val = 0;
             
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
+    //         ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
             
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-            } else {
-                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-            }
-        }
+    //         if (ret == ESP_OK) {
+    //             ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+    //         } else {
+    //             ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+    //         }
+    //     }
         
-        // 清理设备句柄
-        i2c_master_bus_rm_device(es8311_dev);
+    //     // 清理设备句柄
+    //     i2c_master_bus_rm_device(es8311_dev);
         
-        // 如果至少有一个寄存器能读取成功，说明通信正常
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "ES8311通信验证成功\n");
-            return true;
-        } else {
-            ESP_LOGW(TAG, "ES8311通信验证失败\n");
-            return false;
-        }
-    }
+    //     // 如果至少有一个寄存器能读取成功，说明通信正常
+    //     if (ret == ESP_OK) {
+    //         ESP_LOGI(TAG, "ES8311通信验证成功\n");
+    //         return true;
+    //     } else {
+    //         ESP_LOGW(TAG, "ES8311通信验证失败\n");
+    //         return false;
+    //     }
+    // }
 
     //=======================================================================================
 
 
-
-
-    //紧凑型 wifi 板，lcd板，构造函数
+    //面包板 wifi 板，lcd板，构造函数
     MyWifiBoardLCD() : 
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
 
+#ifdef LCD_TYPE_ST7789_SPI_240X320_my
+        // spi屏幕驱动相关初始化
         InitializeSpi();
         InitializeLcdDisplay();
+
+#elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
+        // i2c屏幕驱动相关初始化
+        InitializeDisplayI2c;
+        InitializeSsd1306Display();
+#endif
+
         InitializeButtons();
         InitializeIot();
+
 
         // ********************* i2c 总线初始化 ****************************
         InitializeI2c();
         //vTaskDelay(pdMS_TO_TICKS(100));      
-        i2c_scan_devices();
 
-        verify_es8311_communication();
-
+        //verify_es8311_communication();
         // ****************************************************************
+
 
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
-        }
-        
+        } 
     }
 
     //获取 led 灯
@@ -361,8 +417,7 @@ public:
 
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
 
-    //获取 音频编码器
-
+    //获取音频编解、码器 1，无音频编码器
 //     virtual AudioCodec* GetAudioCodec() override {
 // #ifdef AUDIO_I2S_METHOD_SIMPLEX
 //         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
@@ -376,33 +431,54 @@ public:
 //     }
 
 
+    //获取音频编、解码器 2，es8311
     virtual AudioCodec* GetAudioCodec() override {
         // 2. 实例化 ES8311 编解码器
         static Es8311AudioCodec audio_codec(
-            i2c_bus_,                // I2C 句柄
-            I2C_NUM_0,                    // I2C 端口号
-            AUDIO_INPUT_SAMPLE_RATE,      // 输入采样率
-            AUDIO_OUTPUT_SAMPLE_RATE,     // 输出采样率
-            AUDIO_CODEC_MCLK_PIN,     // MCLK
-            //GPIO_NUM_NC,
-            AUDIO_CODEC_I2S_SCLK_PIN,     // BCLK (SCLK)
-            AUDIO_CODEC_I2S_LRCK_PIN,     // WS (LRCK)
-            AUDIO_CODEC_I2S_ASDOUT_PIN,   // DOUT
-            AUDIO_CODEC_I2S_DSDIN_PIN,    // DIN
-            GPIO_NUM_NC,                 // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC）
-            //AUDIO_CODEC_NS4150_PIN,  
-            AUDIO_CODEC_ES8311_ADDR       // ES8311 I2C 地址
+            i2c_bus_,                   // I2C 句柄
+            I2C_NUM_0,                  // I2C 端口号
+            AUDIO_INPUT_SAMPLE_RATE,    // 输入采样率
+            AUDIO_OUTPUT_SAMPLE_RATE,   // 输出采样率
+
+            AUDIO_CODEC_MCLK_PIN,       // MCLK
+            AUDIO_CODEC_I2S_SCLK_PIN,   // BCLK (SCLK)
+            AUDIO_CODEC_I2S_LRCK_PIN,   // WS (LRCK)
+            AUDIO_CODEC_I2S_ASDOUT_PIN, // DOUT
+            AUDIO_CODEC_I2S_DSDIN_PIN,  // DIN
+
+            AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)  
+            AUDIO_CODEC_ES8311_ADDR,        // ES8311 I2C 地址
+            AUDIO_CODEC_ES7210_I2C_ADDR     // ES7210 I2C 地址
         );
         
-        //DiagnoseES8311Audio();
         return &audio_codec;
     }
+
+    // //获取音频编码器 3，es7210
+    // virtual AudioCodec* GetAudioCodecEs7210() override {
+    //     // 2. 实例化 ES7210 编解码器
+    //     static Es7210AudioCodec audio_codec(
+    //         i2c_bus_,                   // I2C 句柄
+    //         I2C_NUM_0,                  // I2C 端口号
+    //         AUDIO_INPUT_SAMPLE_RATE,    // 输入采样率
+    //         AUDIO_OUTPUT_SAMPLE_RATE,   // 输出采样率
+
+    //         AUDIO_CODEC_MCLK_PIN,       // MCLK
+    //         AUDIO_CODEC_I2S_SCLK_PIN,   // BCLK (SCLK)
+    //         AUDIO_CODEC_I2S_LRCK_PIN,   // WS (LRCK)
+    //         AUDIO_CODEC_I2S_ASDOUT_PIN, // DOUT
+
+    //         AUDIO_CODEC_ES7210_I2C_ADDR       // ES7210 I2C 地址
+    //     );
+    //     return &audio_codec;
+    // }
     
+
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
     
 
 
-    //获取 液晶屏
+    //获取 液晶屏 
     virtual Display* GetDisplay() override {
         return display_;
     }

@@ -9,6 +9,20 @@
 
 #include <atomic>
 
+// Theme color structure
+struct ThemeColors {
+    lv_color_t background;
+    lv_color_t text;
+    lv_color_t chat_background;
+    lv_color_t user_bubble;
+    lv_color_t assistant_bubble;
+    lv_color_t system_bubble;
+    lv_color_t system_text;
+    lv_color_t border;
+    lv_color_t low_battery;
+};
+
+
 class LcdDisplay : public Display {
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -19,8 +33,10 @@ protected:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
+    lv_obj_t* preview_image_ = nullptr;
 
     DisplayFonts fonts_;
+    ThemeColors current_theme_;
 
     void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
@@ -28,13 +44,13 @@ protected:
 
 protected:
     // 添加protected构造函数
-    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts)
-        : panel_io_(panel_io), panel_(panel), fonts_(fonts) {}
+    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts, int width, int height);
     
 public:
     ~LcdDisplay();
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetIcon(const char* icon) override;
+    virtual void SetPreviewImage(const lv_img_dsc_t* img_dsc) override;
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
     virtual void SetChatMessage(const char* role, const char* content) override; 
 #endif  
@@ -44,14 +60,6 @@ public:
 };
 
 // RGB LCD显示器
-/**
- * @brief RGB 并行接口显示器
- * 特点：
- * - 使用RGB并行数据线传输
- * - 常用于大尺寸、高分辨率显示器
- * - 较多GPIO引脚
- * - 传输速度快
- */
 class RgbLcdDisplay : public LcdDisplay {
 public:
     RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -61,13 +69,6 @@ public:
 };
 
 // MIPI LCD显示器
-/**
- * @brief MIPI 接口显示器
- * 特点：
- * - 使用 MIPI DSI 串行接口传输
- * - 高速数据传输、低功耗
- * - 常用于手机、平板等移动设备
- */
 class MipiLcdDisplay : public LcdDisplay {
 public:
     MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -76,13 +77,7 @@ public:
                    DisplayFonts fonts);
 };
 
-/**
- * @brief SPI 接口显示器
- * 特点：
- * - 使用 SPI 串行接口传输
- * - 常用于小尺寸、低分辨率显示器
- * - 较少GPIO引脚
- */
+// // SPI LCD显示器
 class SpiLcdDisplay : public LcdDisplay {
 public:
     SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -92,15 +87,6 @@ public:
 };
 
 // QSPI LCD显示器
-/**
- * @brief QSPI 四线spi接口显示器
- * 特点：
- * - 使用 QSPI 四线spi接口
- * - 比普通spi传输速度快
- * - 常需要专门的QSPI控制器
- * - 较少GPIO引脚
- * - 适合高速显示需求
- */
 class QspiLcdDisplay : public LcdDisplay {
 public:
     QspiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -110,14 +96,6 @@ public:
 };
 
 // MCU8080 LCD显示器
-/**
- * @brief MCU8080 并行接口显示器
- * 特点：
- * - 使用 8080 并行接口
- * - 类似RGB接口，但更简单
- * - 较多GPIO引脚
- * - 常见一些
- */
 class Mcu8080LcdDisplay : public LcdDisplay {
 public:
     Mcu8080LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,

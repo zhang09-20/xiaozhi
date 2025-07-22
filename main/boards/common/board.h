@@ -6,14 +6,15 @@
 #include <mqtt.h>
 #include <udp.h>
 #include <string>
+#include <network_interface.h>
 
 #include "led/led.h"
 #include "backlight.h"
+#include "camera.h"
 
 void* create_board();
 class AudioCodec;
 class Display;
-
 class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
@@ -32,28 +33,26 @@ public:
         return *instance;
     }
 
-    // ************************* 诊断音频编解码器 *************************
-    virtual void DiagnoseES8311Audio() {};
-    // ************************* 诊断音频编解码器 ************************* 
-
     virtual ~Board() = default;
     virtual std::string GetBoardType() = 0;
     virtual std::string GetUuid() { return uuid_; }
     virtual Backlight* GetBacklight() { return nullptr; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
+    // ============================================
+    //virtual AudioCodec* GetAudioCodecEs7210() {};
+    // ============================================
     virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
-    virtual Http* CreateHttp() = 0;
-    virtual WebSocket* CreateWebSocket() = 0;
-    virtual Mqtt* CreateMqtt() = 0;
-    virtual Udp* CreateUdp() = 0;
+    virtual Camera* GetCamera();
+    virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
     virtual std::string GetBoardJson() = 0;
+    virtual std::string GetDeviceStatusJson() = 0;
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \
