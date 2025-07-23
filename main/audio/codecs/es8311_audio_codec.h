@@ -8,6 +8,15 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
+
+// 条件编译 选择要使用的 音频编、解码芯片方案
+//#define ES8311_RX_TX
+#define ES8311_TX_ES7210_RX
+
+
+#ifdef ES8311_RX_TX
+
+#elif defined(ES8311_TX_ES7210_RX)
 /* I2S configurations */
 #define EXAMPLE_I2S_MCLK_MULTIPLE  (I2S_MCLK_MULTIPLE_256)
 #define EXAMPLE_I2S_SAMPLE_BITS    (I2S_DATA_BIT_WIDTH_16BIT)
@@ -18,6 +27,11 @@
 #define EXAMPLE_ES7210_MIC_GAIN    (30)  // 30db
 #define EXAMPLE_ES7210_MIC_SELECTED (ES7120_SEL_MIC1 | ES7120_SEL_MIC2)
 
+#endif
+
+
+
+
 class Es8311AudioCodec : public AudioCodec {
 private:
     const audio_codec_data_if_t* data_if_ = nullptr;
@@ -25,6 +39,9 @@ private:
     const audio_codec_if_t* codec_if_ = nullptr;
     const audio_codec_gpio_if_t* gpio_if_ = nullptr;
 
+#ifdef ES8311_RX_TX
+
+#elif defined(ES8311_TX_ES7210_RX)
     // =====================================================
     const audio_codec_data_if_t* data_if_7210 = nullptr;
     const audio_codec_ctrl_if_t* ctrl_if_7210 = nullptr;
@@ -33,8 +50,9 @@ private:
     
     esp_codec_dev_handle_t dev_7210 = nullptr;
     // =====================================================
-    
 
+#endif
+    
     esp_codec_dev_handle_t dev_ = nullptr;
     gpio_num_t pa_pin_ = GPIO_NUM_NC;
     bool pa_inverted_ = false;

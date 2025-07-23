@@ -4,16 +4,6 @@
 
 #define TAG "Es8374AudioCodec"
 
-/* I2S configurations */
-#define EXAMPLE_I2S_MCLK_MULTIPLE  (I2S_MCLK_MULTIPLE_256)
-#define EXAMPLE_I2S_SAMPLE_BITS    (I2S_DATA_BIT_WIDTH_16BIT)
-#define EXAMPLE_I2S_TDM_SLOT_MASK  (I2S_TDM_SLOT0 | I2S_TDM_SLOT1)
-
-/* ES7210 configurations */
-#define EXAMPLE_ES7210_I2C_ADDR    (0x40)
-#define EXAMPLE_ES7210_MIC_GAIN    (30)  // 30db
-#define EXAMPLE_ES7210_MIC_SELECTED (ES7120_SEL_MIC1 | ES7120_SEL_MIC2)
-
 
 Es8374AudioCodec::Es8374AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
@@ -133,31 +123,8 @@ void Es8374AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
         }
     };
 
-    // =====================================================================
-    i2s_tdm_config_t i2s_tdm_rx_conf = {
-        // es7210 driver is default to use philips format in esp_codec_dev component
-        .slot_cfg = I2S_TDM_PHILIPS_SLOT_DEFAULT_CONFIG(
-            EXAMPLE_I2S_SAMPLE_BITS,
-            I2S_SLOT_MODE_STEREO,
-            EXAMPLE_I2S_TDM_SLOT_MASK),
-        .clk_cfg  = {
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .sample_rate_hz = EXAMPLE_I2S_SAMPLE_RATE,
-            .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE
-        },
-        .gpio_cfg = {
-            .mclk = mclk,
-            .bclk = bclk,
-            .ws   = ws,
-            .dout = -1, // ES7210 only has ADC capability
-            .din  = din
-        },
-    };
-    ESP_ERROR_CHECK(i2s_channel_init_tdm_mode(rx_handle_, &i2s_tdm_rx_conf));
-    // ======================================================================
-
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
-    //ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Duplex channels created");
 }
 

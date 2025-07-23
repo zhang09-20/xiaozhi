@@ -1,5 +1,7 @@
 #include "es8311_audio_codec.h"
-
+extern "C" {
+#include <driver/i2s_std.h>
+    }
 #include <esp_log.h>
 
 #define TAG "Es8311AudioCodec"
@@ -45,7 +47,7 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
     es8311_codec_cfg_t es8311_cfg = {};
     es8311_cfg.ctrl_if = ctrl_if_;
     es8311_cfg.gpio_if = gpio_if_;
-    es8311_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_DECODE; // 同时负责采集+播放 ESP_CODEC_DEV_WORK_MODE_BOTH;
+    es8311_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC; // 同时负责采集+播放 ESP_CODEC_DEV_WORK_MODE_BOTH;
     es8311_cfg.pa_pin = pa_pin;
     es8311_cfg.use_mclk = use_mclk;
     es8311_cfg.hw_gain.pa_voltage = 5.0;
@@ -223,11 +225,11 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
 			#endif
         },
         .slot_cfg = {
-            .data_bit_width = EXAMPLE_I2S_SAMPLE_BITS,
+            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
             .slot_mode = I2S_SLOT_MODE_STEREO,
             .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = EXAMPLE_I2S_SAMPLE_BITS,
+            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
             .ws_pol = false,
             .bit_shift = true,
             #ifdef   I2S_HW_VERSION_2   
@@ -255,26 +257,31 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     // =====================================================================
     // 初始化i2s上行通道，es7210 -> esp32
 
-    i2s_tdm_config_t i2s_tdm_rx_conf = {
+    i2s_std_config_t std_cfg_7210 = {
         // es7210 driver is default to use philips format in esp_codec_dev component
-        .slot_cfg = I2S_TDM_PHILIPS_SLOT_DEFAULT_CONFIG(
-            EXAMPLE_I2S_SAMPLE_BITS,
-            I2S_SLOT_MODE_STEREO,
-            EXAMPLE_I2S_TDM_SLOT_MASK),
         .clk_cfg  = {
-            .clk_src = I2S_CLK_SRC_DEFAULT,
             .sample_rate_hz = (uint32_t)input_sample_rate_,
+            .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE
+        },
+        .slot_cfg = {
+            .data_bit_width = EXAMPLE_I2S_SAMPLE_BITS,
+            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+            .slot_mode = I2S_SLOT_MODE_STEREO,
+            .slot_mask = I2S_STD_SLOT_BOTH,
+            .ws_width = EXAMPLE_I2S_SAMPLE_BITS,
+            .ws_pol = false,
+            .bit_shift = true,
         },
         .gpio_cfg = {
             .mclk = mclk,
             .bclk = bclk,
             .ws   = ws,
-            .dout = -1, // ES7210 only has ADC capability
+            .dout = GPIO_NUM_NC, // ES7210 only has ADC capability
             .din  = din
         },
     };
-    ESP_ERROR_CHECK(i2s_channel_init_tdm_mode(rx_handle_, &i2s_tdm_rx_conf));
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg_7210));
     // ======================================================================
 
     //ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));

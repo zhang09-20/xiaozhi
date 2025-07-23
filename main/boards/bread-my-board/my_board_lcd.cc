@@ -1,11 +1,12 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "audio/codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
+#include "display/oled_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
+//#include "iot/thing_manager.h"
 #include "led/single_led.h"
 
 #include <wifi_station.h>
@@ -21,10 +22,17 @@
 
 
 
+#include "mcp_server.h"
+#include "lamp_controller.h"
+#include <esp_lcd_panel_sh1106.h>
+
+
+
+
 
 // *******************************************************
 #include "audio/codecs/es8311_audio_codec.h"
-#include "audio/codecs/i2s_es7210_audio_codec.h"
+//#include "audio/codecs/i2s_es7210_audio_codec.h"
 #include <math.h>
     // ... 其他 include
 
@@ -40,22 +48,29 @@
 
 #define TAG "my_board_lcd"
 
+
+#ifdef LCD_TYPE_ST7789_SPI_240X320_my
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
+
+#elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
+LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_awesome_14_1);
+
+#endif
 
 // 面板板，wifi板，lcd板，紧凑型
 class MyWifiBoardLCD : public WifiBoard {
 private:
+
+    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+
+    esp_lcd_panel_handle_t panel_ = nullptr;
+
+    Display* display_ = nullptr;
+
     Button boot_button_;
-    LcdDisplay* display_;
 
-    //i2c_master_bus_handle_t display_i2c_bus_;
-    //esp_lcd_panel_io_handle_t panel_io_ = nullptr;
-    //esp_lcd_panel_handle_t panel_ = nullptr;
-    //Display* display_ = nullptr;
-
-    //Button boot_button_;
-    
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
@@ -311,13 +326,13 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-    }
+    // // 物联网初始化，添加对 AI 可见设备
+    // void InitializeIot() {
+    //     auto& thing_manager = iot::ThingManager::GetInstance();
+    //     thing_manager.AddThing(iot::CreateThing("Speaker"));
+    //     thing_manager.AddThing(iot::CreateThing("Screen"));
+    //     thing_manager.AddThing(iot::CreateThing("Lamp"));
+    // }
 
 public:
 
@@ -387,12 +402,12 @@ public:
 
 #elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
         // i2c屏幕驱动相关初始化
-        InitializeDisplayI2c;
+        InitializeDisplayI2c();
         InitializeSsd1306Display();
 #endif
 
         InitializeButtons();
-        InitializeIot();
+        //InitializeIot();
 
 
         // ********************* i2c 总线初始化 ****************************
@@ -402,10 +417,13 @@ public:
         //verify_es8311_communication();
         // ****************************************************************
 
-
+#ifdef LCD_TYPE_ST7789_SPI_240X320_my
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         } 
+#elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
+#endif
+
     }
 
     //获取 led 灯
@@ -484,10 +502,13 @@ public:
     }
 
     virtual Backlight* GetBacklight() override {
+#ifdef LCD_TYPE_ST7789_SPI_240X320_my
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
             return &backlight;
         }
+#elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
+#endif
         return nullptr;
     }
 };
