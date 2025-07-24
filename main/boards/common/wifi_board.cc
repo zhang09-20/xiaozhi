@@ -48,8 +48,12 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
     
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
+    
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap);
@@ -66,25 +70,39 @@ void WifiBoard::EnterWifiConfigMode() {
 
 void WifiBoard::StartNetwork() {
     // User can press BOOT button while starting to enter WiFi configuration mode
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     if (wifi_config_mode_) {
         EnterWifiConfigMode();
         return;
     }
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
 
     // If no WiFi SSID is configured, enter WiFi configuration mode
     auto& ssid_manager = SsidManager::GetInstance();
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     auto ssid_list = ssid_manager.GetSsidList();
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     if (ssid_list.empty()) {
         wifi_config_mode_ = true;
         EnterWifiConfigMode();
         return;
     }
 
+    
+    ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     auto& wifi_station = WifiStation::GetInstance();
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     wifi_station.OnScanBegin([this]() {
         auto display = Board::GetInstance().GetDisplay();
         display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
     });
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     wifi_station.OnConnect([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
         std::string notification = Lang::Strings::CONNECT_TO;
@@ -92,12 +110,16 @@ void WifiBoard::StartNetwork() {
         notification += "...";
         display->ShowNotification(notification.c_str(), 30000);
     });
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     wifi_station.OnConnected([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
         std::string notification = Lang::Strings::CONNECTED_TO;
         notification += ssid;
         display->ShowNotification(notification.c_str(), 30000);
     });
+    
+    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     wifi_station.Start();
 
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP

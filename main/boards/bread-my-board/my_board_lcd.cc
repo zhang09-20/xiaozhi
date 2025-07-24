@@ -464,7 +464,8 @@ public:
             AUDIO_CODEC_I2S_ASDOUT_PIN, // DOUT
             AUDIO_CODEC_I2S_DSDIN_PIN,  // DIN
 
-            AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)  
+            AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)
+            
             AUDIO_CODEC_ES8311_ADDR,        // ES8311 I2C 地址
             AUDIO_CODEC_ES7210_I2C_ADDR     // ES7210 I2C 地址
         );

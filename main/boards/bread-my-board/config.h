@@ -31,7 +31,7 @@
 // es8311-TX + es7210-RX  引脚定义
 #define AUDIO_CODEC_I2C_NUM         (0)
 #define AUDIO_CODEC_ES8311_ADDR     (0x30)   // es8311地址
-#define AUDIO_CODEC_ES7210_I2C_ADDR (0x80)   // es7210地址
+#define AUDIO_CODEC_ES7210_I2C_ADDR (0x82)   // es7210地址
 #define AUDIO_CODEC_I2C_SDA_PIN     GPIO_NUM_1
 #define AUDIO_CODEC_I2C_SCL_PIN     GPIO_NUM_2
 
@@ -98,8 +98,8 @@
 // ssd1306液晶屏 128*64 引脚定义
 #define DISPLAY_I2C_NUM     (1)
 #define DISPLAY_ADDR        (0x3C)      // ssd1306地址
-#define DISPLAY_SDA_PIN     GPIO_NUM_48
-#define DISPLAY_SCL_PIN     GPIO_NUM_47
+#define DISPLAY_SDA_PIN     GPIO_NUM_47
+#define DISPLAY_SCL_PIN     GPIO_NUM_48
 
 #define DISPLAY_WIDTH       128
 #define DISPLAY_HEIGHT      64
