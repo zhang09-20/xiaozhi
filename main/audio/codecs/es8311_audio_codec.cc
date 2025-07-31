@@ -4,6 +4,14 @@ extern "C" {
     }
 #include <esp_log.h>
 
+// =====================================================
+#include <esp_timer.h>
+#include <math.h>
+#include <string.h>
+
+
+
+
 #define TAG "Es8311AudioCodec"
 
 Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port, 
@@ -23,6 +31,8 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
     assert(input_sample_rate_ == output_sample_rate_);
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
+
+    
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
     audio_codec_i2s_cfg_t i2s_cfg = {
         .port = I2S_NUM_0,
@@ -212,7 +222,8 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
         .auto_clear_before_cb = false,
         .intr_priority = 0,
     };
-    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, nullptr));
 
     // 初始化i2s下行通道，esp32 -> es8311
     i2s_std_config_t std_cfg = {
@@ -309,10 +320,64 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
     UpdateDeviceState();
 }
 
+// int Es8311AudioCodec::Read(int16_t* dest, int samples) {
+//     if (input_enabled_ && dev_7210 != nullptr) {
+//         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(dev_7210, (void*)dest, samples * sizeof(int16_t)));
+//     }else{
+//         ESP_LOGI(TAG,"input_enabled_ is false，或者 dev_7210 is nullptr");
+//     }
+//     return samples;
+// }
 int Es8311AudioCodec::Read(int16_t* dest, int samples) {
-    if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(dev_, (void*)dest, samples * sizeof(int16_t)));
+    if (input_enabled_ && dev_7210 != nullptr) {
+        // 读取立体声数据
+        int16_t stereo_buffer[samples * 2];  // 立体声需要2倍空间
+        
+        // 添加设备状态检查
+        esp_err_t ret = esp_codec_dev_read(dev_7210, stereo_buffer, samples * 2 * sizeof(int16_t));
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "esp_codec_dev_read failed: %s", esp_err_to_name(ret));
+            // 如果读取失败，返回静音数据
+            memset(dest, 0, samples * sizeof(int16_t));
+            return samples;
+        }
+        
+    //     // 转换为单声道 (左右声道平均)
+    //     for (int i = 0; i < samples; i++) {
+    //         dest[i] = (stereo_buffer[i*2] + stereo_buffer[i*2+1]) / 2;
+    //     }
+    // }
+
+    // ========================================================
+        // 麦克风质量检测 (可选)
+        #if ENABLE_MIC_DETECTION
+        DetectMicQuality(stereo_buffer, stereo_buffer + samples, samples);
+        #endif
+        
+        // 根据麦克风状态选择转换策略
+        if (mic1_working_ && mic2_working_) {
+            // 两个麦克风都正常，使用加权平均
+            for (int i = 0; i < samples; i++) {
+                dest[i] = (stereo_buffer[i*2] * 3 + stereo_buffer[i*2+1] * 2) / 5;
+            }
+        } else if (mic1_working_ && !mic2_working_) {
+            // 只用左声道 (MIC1)
+            for (int i = 0; i < samples; i++) {
+                dest[i] = stereo_buffer[i*2];
+            }
+        } else if (!mic1_working_ && mic2_working_) {
+            // 只用右声道 (MIC2)
+            for (int i = 0; i < samples; i++) {
+                dest[i] = stereo_buffer[i*2+1];
+            }
+        } else {
+            // 两个麦克风都有问题，使用简单平均
+            for (int i = 0; i < samples; i++) {
+                dest[i] = (stereo_buffer[i*2] + stereo_buffer[i*2+1]) / 2;
+            }
+        }
     }
+    // =======================================================
     return samples;
 }
 
@@ -321,4 +386,130 @@ int Es8311AudioCodec::Write(const int16_t* data, int samples) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(dev_, (void*)data, samples * sizeof(int16_t)));
     }
     return samples;
+}
+
+
+
+
+// =================================================================
+
+// ==================== 麦克风检测方法实现 ====================
+
+bool Es8311AudioCodec::CheckMicSignal(int16_t* channel_data, int samples) {
+    if (samples <= 0) return false;
+    
+    // 计算信号强度 (RMS)
+    int64_t sum_squares = 0;
+    for (int i = 0; i < samples; i++) {
+        sum_squares += (int64_t)channel_data[i] * channel_data[i];
+    }
+    
+    double rms = sqrt((double)sum_squares / samples);
+    
+    // 检查信号强度是否超过阈值
+    bool has_signal = (rms > MIC_SIGNAL_THRESHOLD);
+    
+    ESP_LOGD(TAG, "Mic signal RMS: %.2f, threshold: %d, has_signal: %s", 
+             rms, MIC_SIGNAL_THRESHOLD, has_signal ? "true" : "false");
+    
+    return has_signal;
+}
+
+bool Es8311AudioCodec::DetectMicQuality(int16_t* left_channel, int16_t* right_channel, int samples) {
+    int64_t current_time = esp_timer_get_time() / 1000; // 转换为毫秒
+    
+    // 每5秒检测一次，避免频繁检测
+    if (current_time - last_mic_check_time_ < MIC_CHECK_INTERVAL_MS) {
+        return true; // 跳过检测
+    }
+    
+    last_mic_check_time_ = current_time;
+    
+    // 检测左声道 (MIC1)
+    bool mic1_signal = CheckMicSignal(left_channel, samples);
+    if (mic1_signal) {
+        mic_success_count_[0]++;
+        mic_failure_count_[0] = 0;
+    } else {
+        mic_failure_count_[0]++;
+        mic_success_count_[0] = 0;
+    }
+    
+    // 检测右声道 (MIC2)
+    bool mic2_signal = CheckMicSignal(right_channel, samples);
+    if (mic2_signal) {
+        mic_success_count_[1]++;
+        mic_failure_count_[1] = 0;
+    } else {
+        mic_failure_count_[1]++;
+        mic_success_count_[1] = 0;
+    }
+    
+    // 添加调试信息
+    ESP_LOGD(TAG, "Mic1 signal: %s, Mic2 signal: %s", 
+             mic1_signal ? "true" : "false", mic2_signal ? "true" : "false");
+    
+    // 更新麦克风状态
+    UpdateMicStatus();
+    
+    ESP_LOGI(TAG, "Mic1: working=%s, success=%d, failure=%d", 
+             mic1_working_ ? "true" : "false", mic_success_count_[0], mic_failure_count_[0]);
+    ESP_LOGI(TAG, "Mic2: working=%s, success=%d, failure=%d", 
+             mic2_working_ ? "true" : "false", mic_success_count_[1], mic_failure_count_[1]);
+    
+    return true;
+}
+
+void Es8311AudioCodec::UpdateMicStatus() {
+    // 更新MIC1状态
+    if (mic_failure_count_[0] >= MIC_FAILURE_THRESHOLD) {
+        if (mic1_working_) {
+            ESP_LOGW(TAG, "MIC1 detected as failed");
+            mic1_working_ = false;
+        }
+    } else if (mic_success_count_[0] >= MIC_SUCCESS_THRESHOLD) {
+        if (!mic1_working_) {
+            ESP_LOGI(TAG, "MIC1 detected as working");
+            mic1_working_ = true;
+        }
+    }
+    
+    // 更新MIC2状态
+    if (mic_failure_count_[1] >= MIC_FAILURE_THRESHOLD) {
+        if (mic2_working_) {
+            ESP_LOGW(TAG, "MIC2 detected as failed");
+            mic2_working_ = false;
+        }
+    } else if (mic_success_count_[1] >= MIC_SUCCESS_THRESHOLD) {
+        if (!mic2_working_) {
+            ESP_LOGI(TAG, "MIC2 detected as working");
+            mic2_working_ = true;
+        }
+    }
+}
+
+void Es8311AudioCodec::SwitchToSingleMic(int mic_index) {
+    if (mic_index == 0) {
+        // 切换到MIC1
+        mic1_working_ = true;
+        mic2_working_ = false;
+        ESP_LOGI(TAG, "Switched to MIC1 only");
+    } else if (mic_index == 1) {
+        // 切换到MIC2
+        mic1_working_ = false;
+        mic2_working_ = true;
+        ESP_LOGI(TAG, "Switched to MIC2 only");
+    }
+}
+
+int Es8311AudioCodec::GetActiveMicCount() const {
+    int count = 0;
+    if (mic1_working_) count++;
+    if (mic2_working_) count++;
+    return count;
+}
+
+void Es8311AudioCodec::ForceMicCheck() {
+    last_mic_check_time_ = 0; // 强制下次检测
+    ESP_LOGI(TAG, "Forced mic check requested");
 }

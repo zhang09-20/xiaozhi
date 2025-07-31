@@ -207,17 +207,9 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
 void Application::Alert(const char* status, const char* message, const char* emotion, const std::string_view& sound) {
     ESP_LOGW(TAG, "Alert %s: %s [%s]", status, message, emotion);
     auto display = Board::GetInstance().GetDisplay();
-    
-    ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     display->SetStatus(status);
-    
-    ESP_LOGI(TAG,"2222222222222222222222222222");   // ===============================================
     display->SetEmotion(emotion);
-    
-    ESP_LOGI(TAG,"3333333333333333333333333333");   // ===============================================
     display->SetChatMessage("system", message);
-    
-    ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     if (!sound.empty()) {
         audio_service_.PlaySound(sound);
     }
@@ -333,31 +325,18 @@ void Application::StopListening() {
 }
 
 void Application::Start() {
-
-    ESP_LOGI(TAG,"开始启动");
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
 
     /* Setup the display */
     auto display = board.GetDisplay();
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
-
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     audio_service_.Start();
 
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     AudioServiceCallbacks callbacks;
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     callbacks.on_send_queue_available = [this]() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_SEND_AUDIO);
     };
@@ -367,21 +346,13 @@ void Application::Start() {
     callbacks.on_vad_change = [this](bool speaking) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     audio_service_.SetCallbacks(callbacks);
 
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     /* Start the clock timer to update the status bar */
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
 
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     /* Wait for the network to be ready */
     board.StartNetwork();
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
 
     // Update the status bar immediately to show the network state
     display->UpdateStatusBar(true);
@@ -396,8 +367,6 @@ void Application::Start() {
     // Add MCP common tools before initializing the protocol
     McpServer::GetInstance().AddCommonTools();
 
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     if (ota.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota.HasWebsocketConfig()) {
@@ -431,8 +400,6 @@ void Application::Start() {
             SetDeviceState(kDeviceStateIdle);
         });
     });
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");   // ===============================================
     protocol_->OnIncomingJson([this, display](const cJSON* root) {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");
@@ -522,8 +489,6 @@ void Application::Start() {
             ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }
     });
-    
-    //ESP_LOGI(TAG,"1111111111111111111111111111");//===============================================
     bool protocol_started = protocol_->Start();
 
     SetDeviceState(kDeviceStateIdle);
@@ -537,10 +502,9 @@ void Application::Start() {
         audio_service_.PlaySound(Lang::Sounds::P3_SUCCESS);
     }
 
-    //ESP_LOGI(TAG,"1111111111111111111111111111");
     // Print heap stats
     SystemInfo::PrintHeapStats();
-    //ESP_LOGI(TAG,"2222222222222222222222222222");
+    
     // Enter the main event loop
     MainEventLoop();
 }

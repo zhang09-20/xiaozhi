@@ -39,9 +39,6 @@ public:
     virtual Backlight* GetBacklight() { return nullptr; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
-    // ============================================
-    //virtual AudioCodec* GetAudioCodecEs7210() {};
-    // ============================================
     virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
     virtual Camera* GetCamera();

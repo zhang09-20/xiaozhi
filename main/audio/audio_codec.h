@@ -42,7 +42,6 @@ protected:
     i2s_chan_handle_t tx_handle_ = nullptr;
     i2s_chan_handle_t rx_handle_ = nullptr;
 
-
     bool duplex_ = false;
     bool input_reference_ = false;
     bool input_enabled_ = false;

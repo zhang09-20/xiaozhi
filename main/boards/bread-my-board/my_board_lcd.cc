@@ -28,10 +28,10 @@
 
 
 
-
-
 // *******************************************************
 #include "audio/codecs/es8311_audio_codec.h"
+
+#include "audio/boards/common/esp32_camera.h"
 //#include "audio/codecs/i2s_es7210_audio_codec.h"
 #include <math.h>
     // ... 其他 include
@@ -64,24 +64,23 @@ class MyWifiBoardLCD : public WifiBoard {
 private:
 
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
-
     esp_lcd_panel_handle_t panel_ = nullptr;
 
     Display* display_ = nullptr;
-
     Button boot_button_;
 
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
 
+    // 摄像头
+    Esp32Camera* camera_;
+
 
     // // 全局I2C总线句柄 *****************************************************
     i2c_master_bus_handle_t i2c_bus_ = nullptr;         // 实例变量而非静态变量
-
     void InitializeI2c() {
-        ESP_LOGI(TAG, "初始化codec I2C总线...");
-        
+        ESP_LOGI(TAG, "初始化codec I2C总线...");     
         i2c_master_bus_config_t i2c_mst_config = {
             .i2c_port = (i2c_port_t)0,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
@@ -95,7 +94,6 @@ private:
                 .enable_internal_pullup = true
             }
         };
-
         ESP_ERROR_CHECK (i2c_new_master_bus(&i2c_mst_config, &i2c_bus_)); // 创建 I2C 总线
 
         if(i2c_bus_ == nullptr) {
@@ -104,15 +102,43 @@ private:
         }
         
         ESP_LOGI(TAG, "I2C总线初始化成功\n");
-
         vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms，确保i2c从设备上电成功
     }
 
 
+    void InitializeCamera() {
+        camera_config_t config = {};
+        config.pin_d0 = CAMERA_PIN_D0;
+        config.pin_d1 = CAMERA_PIN_D1;
+        config.pin_d2 = CAMERA_PIN_D2;
+        config.pin_d3 = CAMERA_PIN_D3;
+        config.pin_d4 = CAMERA_PIN_D4;
+        config.pin_d5 = CAMERA_PIN_D5;
+        config.pin_d6 = CAMERA_PIN_D6;
+        config.pin_d7 = CAMERA_PIN_D7;
+        config.pin_xclk = CAMERA_PIN_XCLK;
+        config.pin_pclk = CAMERA_PIN_PCLK;
+        config.pin_vsync = CAMERA_PIN_VSYNC;
+        config.pin_href = CAMERA_PIN_HREF;
+        config.pin_sccb_sda = CAMERA_PIN_SIOD;  
+        config.pin_sccb_scl = CAMERA_PIN_SIOC;
+        config.sccb_i2c_port = 0;
+        config.pin_pwdn = CAMERA_PIN_PWDN;
+        config.pin_reset = CAMERA_PIN_RESET;
+        config.xclk_freq_hz = XCLK_FREQ_HZ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_QVGA;
+        config.jpeg_quality = 12;
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM;
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        camera_ = new Esp32Camera(config);
+        camera_->SetHMirror(false);
+    }
+
 
 #ifdef OLED_TYPE_SSD1306_I2C_128X64_test
     i2c_master_bus_handle_t display_i2c_bus_ = nullptr;  // 实例变量而非静态变量
-
     void InitializeDisplayI2c() {
         ESP_LOGI(TAG, "初始化display I2C总线...");
         i2c_master_bus_config_t bus_config = {
@@ -132,8 +158,7 @@ private:
         if(display_i2c_bus_ == nullptr) {
             ESP_LOGE(TAG, "display I2C总线初始化失败");
             return;
-        }
-        
+        }    
         ESP_LOGI(TAG, "display I2C总线初始化成功\n");
     }
 
@@ -153,7 +178,6 @@ private:
             },
             .scl_speed_hz = 400 * 1000,
         };
-
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
 
         ESP_LOGI(TAG, "Install SSD1306 driver");
@@ -326,64 +350,56 @@ private:
         });
     }
 
-    // // 物联网初始化，添加对 AI 可见设备
-    // void InitializeIot() {
-    //     auto& thing_manager = iot::ThingManager::GetInstance();
-    //     thing_manager.AddThing(iot::CreateThing("Speaker"));
-    //     thing_manager.AddThing(iot::CreateThing("Screen"));
-    //     thing_manager.AddThing(iot::CreateThing("Lamp"));
-    // }
-
 public:
 
     //======================================================================
 
-    // // 验证与ES8311的通信，读取寄存器的值
-    // bool verify_es8311_communication() {
-    //     ESP_LOGI(TAG, "验证与ES8311的通信...");
+    // 验证与ES8311的通信，读取寄存器的值
+    bool verify_es8311_communication() {
+        ESP_LOGI(TAG, "验证与ES8311的通信...");
         
-    //     // 创建ES8311设备句柄
-    //     i2c_device_config_t es8311_dev_cfg = {
-    //         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-    //         .device_address = AUDIO_CODEC_ES8311_ADDR,
-    //         .scl_speed_hz = 100000,  // 100kHz
-    //     };
+        // 创建ES8311设备句柄
+        i2c_device_config_t es8311_dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = 0x41,
+            .scl_speed_hz = 100000,  // 100kHz
+        };
         
-    //     i2c_master_dev_handle_t es8311_dev = NULL;
-    //     esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
-    //     if (ret != ESP_OK) {
-    //         ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
-    //         return false;
-    //     }
+        i2c_master_dev_handle_t es8311_dev = NULL;
+        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
+            return false;
+        }
         
-    //     // 读取几个寄存器
-    //     //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
+        // 读取几个寄存器
+        //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-    //     for (size_t i = 0x00; i < 0x05; i++) {
-    //         uint8_t reg_addr = i;
-    //         uint8_t reg_val = 0;
+        for (size_t i = 0x00; i < 0x05; i++) {
+            uint8_t reg_addr = i;
+            uint8_t reg_val = 0;
             
-    //         ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
             
-    //         if (ret == ESP_OK) {
-    //             ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-    //         } else {
-    //             ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-    //         }
-    //     }
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+            } else {
+                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+            }
+        }
         
-    //     // 清理设备句柄
-    //     i2c_master_bus_rm_device(es8311_dev);
+        // 清理设备句柄
+        i2c_master_bus_rm_device(es8311_dev);
         
-    //     // 如果至少有一个寄存器能读取成功，说明通信正常
-    //     if (ret == ESP_OK) {
-    //         ESP_LOGI(TAG, "ES8311通信验证成功\n");
-    //         return true;
-    //     } else {
-    //         ESP_LOGW(TAG, "ES8311通信验证失败\n");
-    //         return false;
-    //     }
-    // }
+        // 如果至少有一个寄存器能读取成功，说明通信正常
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "ES8311通信验证成功\n");
+            return true;
+        } else {
+            ESP_LOGW(TAG, "ES8311通信验证失败\n");
+            return false;
+        }
+    }
 
     //=======================================================================================
 
@@ -399,7 +415,6 @@ public:
         // spi屏幕驱动相关初始化
         InitializeSpi();
         InitializeLcdDisplay();
-
 #elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
         // i2c屏幕驱动相关初始化
         InitializeDisplayI2c();
@@ -407,14 +422,12 @@ public:
 #endif
 
         InitializeButtons();
-        //InitializeIot();
+        // ********************* audio_i2c、camera ****************************
+        //InitializeCamera();
 
-
-        // ********************* i2c 总线初始化 ****************************
         InitializeI2c();
-        //vTaskDelay(pdMS_TO_TICKS(100));      
-
-        //verify_es8311_communication();
+        //vTaskDelay(pdMS_TO_TICKS(100));   
+        verify_es8311_communication();
         // ****************************************************************
 
 #ifdef LCD_TYPE_ST7789_SPI_240X320_my
@@ -461,8 +474,8 @@ public:
             AUDIO_CODEC_MCLK_PIN,       // MCLK
             AUDIO_CODEC_I2S_SCLK_PIN,   // BCLK (SCLK)
             AUDIO_CODEC_I2S_LRCK_PIN,   // WS (LRCK)
-            AUDIO_CODEC_I2S_ASDOUT_PIN, // DOUT
-            AUDIO_CODEC_I2S_DSDIN_PIN,  // DIN
+            AUDIO_CODEC_I2S_DO_PIN,     // DSDIN
+            AUDIO_CODEC_I2S_DI_PIN,     // ASDOUT
 
             AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)
             
@@ -472,26 +485,6 @@ public:
         
         return &audio_codec;
     }
-
-    // //获取音频编码器 3，es7210
-    // virtual AudioCodec* GetAudioCodecEs7210() override {
-    //     // 2. 实例化 ES7210 编解码器
-    //     static Es7210AudioCodec audio_codec(
-    //         i2c_bus_,                   // I2C 句柄
-    //         I2C_NUM_0,                  // I2C 端口号
-    //         AUDIO_INPUT_SAMPLE_RATE,    // 输入采样率
-    //         AUDIO_OUTPUT_SAMPLE_RATE,   // 输出采样率
-
-    //         AUDIO_CODEC_MCLK_PIN,       // MCLK
-    //         AUDIO_CODEC_I2S_SCLK_PIN,   // BCLK (SCLK)
-    //         AUDIO_CODEC_I2S_LRCK_PIN,   // WS (LRCK)
-    //         AUDIO_CODEC_I2S_ASDOUT_PIN, // DOUT
-
-    //         AUDIO_CODEC_ES7210_I2C_ADDR       // ES7210 I2C 地址
-    //     );
-    //     return &audio_codec;
-    // }
-    
 
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
     

@@ -9,10 +9,19 @@
 #include <esp_codec_dev_defaults.h>
 
 
+
+
+// =====================================================
+// 麦克风检测配置
+#define ENABLE_MIC_DETECTION 1  // 启用麦克风检测
+#define MIC_DETECTION_SIMPLE  1  // 使用简化检测方案
+// =====================================================
+
+
+
 // 条件编译 选择要使用的 音频编、解码芯片方案
 //#define ES8311_RX_TX
 #define ES8311_TX_ES7210_RX
-
 
 #ifdef ES8311_RX_TX
 
@@ -60,6 +69,30 @@ private:
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
     void UpdateDeviceState();
 
+
+
+    // =====================================================
+    // 麦克风检测相关
+    bool mic1_working_ = true;
+    bool mic2_working_ = true;
+    int mic_failure_count_[2] = {0, 0};
+    int mic_success_count_[2] = {0, 0};
+    int64_t last_mic_check_time_ = 0;
+    static const int MIC_CHECK_INTERVAL_MS = 5000;  // 5秒检测一次
+    static const int MIC_FAILURE_THRESHOLD = 10;    // 连续10次失败认为麦克风故障
+    static const int MIC_SUCCESS_THRESHOLD = 5;     // 连续5次成功认为麦克风正常
+    static const int MIC_SIGNAL_THRESHOLD = 50;     // 降低信号强度阈值
+
+    // 麦克风检测方法
+    bool DetectMicQuality(int16_t* left_channel, int16_t* right_channel, int samples);
+    bool CheckMicSignal(int16_t* channel_data, int samples);
+    void UpdateMicStatus();
+    void SwitchToSingleMic(int mic_index);
+    // =====================================================
+
+
+
+
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
 
@@ -74,6 +107,18 @@ public:
     virtual void SetOutputVolume(int volume) override;
     virtual void EnableInput(bool enable) override;
     virtual void EnableOutput(bool enable) override;
+
+
+    
+    // =====================================================
+    // 麦克风状态查询
+    bool IsMic1Working() const { return mic1_working_; }
+    bool IsMic2Working() const { return mic2_working_; }
+    int GetActiveMicCount() const;
+    void ForceMicCheck();
+    // =====================================================
+
+
 };
 
 #endif // _ES8311_AUDIO_CODEC_H
