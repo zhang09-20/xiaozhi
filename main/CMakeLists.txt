@@ -5,6 +5,7 @@ set(SOURCES "audio/audio_codec.cc"
             "audio/codecs/es8311_audio_codec.cc"
             "audio/codecs/es8374_audio_codec.cc"
             "audio/codecs/es8388_audio_codec.cc"
+            "audio/codecs/es8389_audio_codec.cc"
             "audio/codecs/dummy_audio_codec.cc"
             "audio/processors/audio_debugger.cc"
             "led/single_led.cc"
@@ -33,9 +34,7 @@ list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 # 根据 BOARD_TYPE 配置添加对应的板级文件
-if(CONFIG_BOARD_TYPE_MY_WIFI_BOARD)
-    set(BOARD_TYPE "bread-my-board")
-elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BOARD_TYPE "bread-compact-wifi")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
@@ -107,6 +106,8 @@ elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06)
+    set(BOARD_TYPE "waveshare-s3-touch-amoled-2.06")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
     set(BOARD_TYPE "waveshare-s3-touch-amoled-1.75")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
@@ -153,6 +154,10 @@ elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
     set(BOARD_TYPE "atk-dnesp32s3-box")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
     set(BOARD_TYPE "atk-dnesp32s3-box0")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_WIFI)
+    set(BOARD_TYPE "atk-dnesp32s3-box2-wifi")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_4G)
+    set(BOARD_TYPE "atk-dnesp32s3-box2-4g")   
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
     set(BOARD_TYPE "atk-dnesp32s3m-wifi")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
@@ -252,6 +257,7 @@ file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
                              "audio/codecs/es8388_audio_codec.cc"
+                             "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
 endif()

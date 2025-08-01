@@ -69,7 +69,7 @@ private:
  
     Button boot_button_;
     LcdDisplay* display_;
-    Esp32Camera* camera_;
+     Esp32Camera* camera_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
