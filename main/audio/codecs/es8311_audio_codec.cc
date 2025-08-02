@@ -1,7 +1,7 @@
 #include "es8311_audio_codec.h"
 extern "C" {
 #include <driver/i2s_std.h>
-    }
+}
 #include <esp_log.h>
 
 // =====================================================
@@ -64,6 +64,11 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
             .codec_dac_voltage = 3.3,
         },
         .mclk_div = EXAMPLE_I2S_MCLK_MULTIPLE,
+        .i2s_iface = {
+            .mode = AUDIO_HAL_MODE_SLAVE,
+            .fmt = AUDIO_HAL_I2S_NORMAL,
+            .samples = AUDIO_HAL_16K_SAMPLES,
+        },
     };
     codec_if_ = es8311_codec_new(&es8311_cfg);
     assert(codec_if_ != NULL);
@@ -182,11 +187,13 @@ void Es8311AudioCodec::UpdateDeviceState() {
             .channel = 2,
             .channel_mask = 0x03,
             .sample_rate = (uint32_t)output_sample_rate_,
-            //.mclk_multiple = 0,
+            .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(dev_, &fs));
-        //ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, AUDIO_CODEC_DEFAULT_MIC_GAIN));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, output_volume_));
+        
+        // 设置DAC增益
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_mute(dev_, false));
     } else if (!output_enabled_ && dev_ != nullptr) {
         esp_codec_dev_close(dev_);
         dev_ = nullptr;
@@ -249,8 +256,23 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     // // 初始化i2s下行通道，esp32 -> es8311
     // =======================================================
     i2s_std_config_t std_cfg = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(output_sample_rate_)),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .clk_cfg = {
+            .sample_rate_hz = static_cast<uint32_t>(output_sample_rate_),
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE,
+        },
+        .slot_cfg = {
+            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+            .slot_mode = I2S_SLOT_MODE_STEREO,
+            .slot_mask = I2S_STD_SLOT_BOTH,
+            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+            .ws_pol = false,
+            .bit_shift = true,
+            .left_align = true,
+            .big_endian = false,
+            .bit_order_lsb = false,
+        },
         .gpio_cfg = {
             .mclk = mclk,
             .bclk = bclk,
@@ -264,7 +286,6 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
             },
         },
     };
-    std_cfg.clk_cfg.mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE;
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
 
@@ -425,8 +446,14 @@ int Es8311AudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int Es8311AudioCodec::Write(const int16_t* data, int samples) {
-    if (output_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(dev_, (void*)data, samples * sizeof(int16_t)));
+    if (output_enabled_ && dev_ != nullptr) {
+        // 将单声道数据转换为立体声数据
+        int16_t stereo_buffer[samples * 2];
+        for (int i = 0; i < samples; i++) {
+            stereo_buffer[i*2] = data[i];     // 左声道
+            stereo_buffer[i*2+1] = data[i];   // 右声道
+        }
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(dev_, stereo_buffer, samples * 2 * sizeof(int16_t)));
     }
     return samples;
 }
