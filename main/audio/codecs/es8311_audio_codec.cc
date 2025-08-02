@@ -1,6 +1,7 @@
 #include "es8311_audio_codec.h"
 extern "C" {
 #include <driver/i2s_std.h>
+#include <driver/i2s_tdm.h>
 }
 #include <esp_log.h>
 
@@ -64,11 +65,6 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
             .codec_dac_voltage = 3.3,
         },
         .mclk_div = EXAMPLE_I2S_MCLK_MULTIPLE,
-        .i2s_iface = {
-            .mode = AUDIO_HAL_MODE_SLAVE,
-            .fmt = AUDIO_HAL_I2S_NORMAL,
-            .samples = AUDIO_HAL_16K_SAMPLES,
-        },
     };
     codec_if_ = es8311_codec_new(&es8311_cfg);
     assert(codec_if_ != NULL);
@@ -115,8 +111,6 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
         .ctrl_if = ctrl_if_7210,
         .master_mode = false,
         .mic_selected = EXAMPLE_ES7210_MIC_SELECTED,
-        .mclk_src = ES7210_MCLK_FROM_PAD,
-        .mclk_div = EXAMPLE_I2S_MCLK_MULTIPLE,
     };
     codec_if_7210 = es7210_codec_new(&es7210_cfg);
     assert(codec_if_7210);
@@ -210,11 +204,11 @@ void Es8311AudioCodec::UpdateDeviceState() {
         assert(dev_7210 != NULL);
 
         esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
+            .bits_per_sample = EXAMPLE_I2S_SAMPLE_BITS,
             .channel = 2,
-            .channel_mask = EXAMPLE_ES7210_MIC_SELECTED,
+            .channel_mask = 0x03,  // 使用0x03表示左右声道
             .sample_rate = (uint32_t)input_sample_rate_,
-            .mclk_multiple = 0,
+            .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(dev_7210, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_7210, AUDIO_CODEC_DEFAULT_MIC_GAIN));
@@ -332,31 +326,40 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     // =====================================================================
     // 初始化i2s上行通道，es7210 -> esp32
 
-    i2s_std_config_t std_cfg_7210 = {
-        // es7210 driver is default to use philips format in esp_codec_dev component
-        .clk_cfg  = {
+    i2s_tdm_config_t tdm_cfg_7210 = {
+        .clk_cfg = {
             .sample_rate_hz = (uint32_t)input_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
-            .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE
+            .mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE,
+            .bclk_div = 8,
         },
         .slot_cfg = {
             .data_bit_width = EXAMPLE_I2S_SAMPLE_BITS,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
             .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = EXAMPLE_I2S_SAMPLE_BITS,
+            .slot_mask = i2s_tdm_slot_mask_t(I2S_TDM_SLOT0 | I2S_TDM_SLOT1),
+            .ws_width = I2S_TDM_AUTO_WS_WIDTH,
             .ws_pol = false,
             .bit_shift = true,
+            .left_align = false,
+            .big_endian = false,
+            .bit_order_lsb = false,
+            .skip_mask = false,
         },
         .gpio_cfg = {
             .mclk = mclk,
             .bclk = bclk,
-            .ws   = ws,
+            .ws = ws,
             .dout = GPIO_NUM_NC, // ES7210 only has ADC capability
-            .din  = din
+            .din = din,
+            .invert_flags = {
+                .mclk_inv = false,
+                .bclk_inv = false,
+                .ws_inv = false,
+            },
         },
     };
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg_7210));
+    ESP_ERROR_CHECK(i2s_channel_init_tdm_mode(rx_handle_, &tdm_cfg_7210));
     // ======================================================================
 
     //ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
