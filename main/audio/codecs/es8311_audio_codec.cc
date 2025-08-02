@@ -10,6 +10,9 @@ extern "C" {
 #include <string.h>
 
 
+//#include "managed_components/espressif__esp_codec_dev/device/es8311/es8311.h"
+
+
 
 
 #define TAG "Es8311AudioCodec"
@@ -65,6 +68,9 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
     es8311_cfg.pa_reverted = pa_inverted_;
     codec_if_ = es8311_codec_new(&es8311_cfg);
     assert(codec_if_ != NULL);
+
+
+
 
 
 
@@ -254,7 +260,7 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
             .bclk = bclk,
             .ws = ws,
             .dout = dout,
-            .din = din,
+            .din = GPIO_NUM_NC,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,

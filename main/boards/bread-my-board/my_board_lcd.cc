@@ -31,7 +31,7 @@
 // *******************************************************
 #include "audio/codecs/es8311_audio_codec.h"
 
-#include "audio/boards/common/esp32_camera.h"
+#include "esp32_camera.h"
 //#include "audio/codecs/i2s_es7210_audio_codec.h"
 #include <math.h>
     // ... 其他 include
@@ -361,7 +361,7 @@ public:
         // 创建ES8311设备句柄
         i2c_device_config_t es8311_dev_cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = 0x41,
+            .device_address = 0x18,
             .scl_speed_hz = 100000,  // 100kHz
         };
         
@@ -375,12 +375,43 @@ public:
         // 读取几个寄存器
         //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-        for (size_t i = 0x00; i < 0x05; i++) {
+        for (size_t i = 0x00; i <= 0x1C; i++) {
             uint8_t reg_addr = i;
-            uint8_t reg_val = 0;
-            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);
-            
+            uint8_t reg_val = 0;            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+            } else {
+                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+            }
+        }
+
+        for (size_t i = 0x31; i <= 0x37; i++) {
+            uint8_t reg_addr = i;
+            uint8_t reg_val = 0;            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+            } else {
+                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+            }
+        }
+
+        for (size_t i = 0x44; i <= 0x45; i++) {
+            uint8_t reg_addr = i;
+            uint8_t reg_val = 0;            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+            } else {
+                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+            }
+        }
+
+        for (size_t i = 0xFD; i <= 0xFF; i++) {
+            uint8_t reg_addr = i;
+            uint8_t reg_val = 0;            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
             if (ret == ESP_OK) {
                 ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
             } else {
@@ -427,7 +458,7 @@ public:
 
         InitializeI2c();
         //vTaskDelay(pdMS_TO_TICKS(100));   
-        verify_es8311_communication();
+        //verify_es8311_communication();
         // ****************************************************************
 
 #ifdef LCD_TYPE_ST7789_SPI_240X320_my
@@ -462,6 +493,7 @@ public:
 //     }
 
 
+    static uint8_t test_flag;
     //获取音频编、解码器 2，es8311
     virtual AudioCodec* GetAudioCodec() override {
         // 2. 实例化 ES8311 编解码器
@@ -482,13 +514,17 @@ public:
             AUDIO_CODEC_ES8311_ADDR,        // ES8311 I2C 地址
             AUDIO_CODEC_ES7210_I2C_ADDR     // ES7210 I2C 地址
         );
+
+        if (!test_flag) {
+            verify_es8311_communication();
+            test_flag ++;
+        }
         
         return &audio_codec;
     }
 
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
     
-
 
     //获取 液晶屏 
     virtual Display* GetDisplay() override {
@@ -506,5 +542,7 @@ public:
         return nullptr;
     }
 };
+
+uint8_t MyWifiBoardLCD::test_flag = 0;
 
 DECLARE_BOARD(MyWifiBoardLCD);

@@ -117,13 +117,19 @@
 
 #ifdef LCD_TYPE_ST7789_SPI_240X320_my
 // ST7789液晶屏 240*320 引脚定义
-#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_18
-#define DISPLAY_MOSI_PIN      GPIO_NUM_10
-#define DISPLAY_CLK_PIN       GPIO_NUM_11
-#define DISPLAY_DC_PIN        GPIO_NUM_9
-#define DISPLAY_RST_PIN       GPIO_NUM_3
-#define DISPLAY_CS_PIN        GPIO_NUM_8
+// #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_18
+// #define DISPLAY_MOSI_PIN      GPIO_NUM_10
+// #define DISPLAY_CLK_PIN       GPIO_NUM_11
+// #define DISPLAY_DC_PIN        GPIO_NUM_9
+// #define DISPLAY_RST_PIN       GPIO_NUM_3
+// #define DISPLAY_CS_PIN        GPIO_NUM_8
 
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
+#define DISPLAY_MOSI_PIN      GPIO_NUM_48
+#define DISPLAY_CLK_PIN       GPIO_NUM_47
+#define DISPLAY_DC_PIN        GPIO_NUM_40
+#define DISPLAY_RST_PIN       GPIO_NUM_39
+#define DISPLAY_CS_PIN        GPIO_NUM_41
 #elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
 // ssd1306液晶屏 128*64 引脚定义
 #define DISPLAY_I2C_NUM     (1)
@@ -132,14 +138,14 @@
 #define DISPLAY_SCL_PIN     GPIO_NUM_48
 
 #define DISPLAY_WIDTH       128
-#define DISPLAY_HEIGHT      32
+#define DISPLAY_HEIGHT      64
 #define DISPLAY_MIRROR_X    true
 #define DISPLAY_MIRROR_Y    true
 #endif
 
 
 
-#if defined(CONFIG_LCD_ST7789_240X320) && defined(LCD_TYPE_ST7789_SPI_240X320_my)
+#if defined(LCD_TYPE_ST7789_SPI_240X320_my)
 #define LCD_TYPE_ST7789_SERIAL
 #define DISPLAY_WIDTH   240
 #define DISPLAY_HEIGHT  320
