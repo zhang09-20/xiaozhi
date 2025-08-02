@@ -9,12 +9,6 @@ extern "C" {
 #include <math.h>
 #include <string.h>
 
-
-//#include "managed_components/espressif__esp_codec_dev/device/es8311/es8311.h"
-
-
-
-
 #define TAG "Es8311AudioCodec"
 
 Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port, 
@@ -57,17 +51,34 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
     gpio_if_ = audio_codec_new_gpio();
     assert(gpio_if_ != NULL);
 
-    es8311_codec_cfg_t es8311_cfg = {};
-    es8311_cfg.ctrl_if = ctrl_if_;
-    es8311_cfg.gpio_if = gpio_if_;
-    es8311_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC; // 同时负责采集+播放 ESP_CODEC_DEV_WORK_MODE_BOTH;
-    es8311_cfg.pa_pin = pa_pin;
-    es8311_cfg.use_mclk = use_mclk;
-    es8311_cfg.hw_gain.pa_voltage = 5.0;
-    es8311_cfg.hw_gain.codec_dac_voltage = 3.3;
-    es8311_cfg.pa_reverted = pa_inverted_;
+    es8311_codec_cfg_t es8311_cfg = {
+        .ctrl_if = ctrl_if_,
+        .gpio_if = gpio_if_,
+        .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,  // Changed to output only mode
+        .pa_pin = pa_pin_,
+        .pa_reverted = pa_inverted_,
+        .master_mode = false,
+        .use_mclk = use_mclk,
+        .hw_gain = {
+            .pa_voltage = 5.0,
+            .codec_dac_voltage = 3.3,
+        },
+        .mclk_div = EXAMPLE_I2S_MCLK_MULTIPLE,
+    };
     codec_if_ = es8311_codec_new(&es8311_cfg);
     assert(codec_if_ != NULL);
+
+    // es8311_codec_cfg_t es8311_cfg = {};
+    // es8311_cfg.ctrl_if = ctrl_if_;
+    // es8311_cfg.gpio_if = gpio_if_;
+    // es8311_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC; // 同时负责采集+播放 ESP_CODEC_DEV_WORK_MODE_BOTH;
+    // es8311_cfg.pa_pin = pa_pin;
+    // es8311_cfg.use_mclk = use_mclk;
+    // es8311_cfg.hw_gain.pa_voltage = 5.0;
+    // es8311_cfg.hw_gain.codec_dac_voltage = 3.3;
+    // es8311_cfg.pa_reverted = pa_inverted_;
+    // codec_if_ = es8311_codec_new(&es8311_cfg);
+    // assert(codec_if_ != NULL);
 
 
 
@@ -167,11 +178,11 @@ void Es8311AudioCodec::UpdateDeviceState() {
         assert(dev_ != NULL);
 
         esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
+            .bits_per_sample = I2S_DATA_BIT_WIDTH_16BIT,
+            .channel = 2,
+            .channel_mask = 0x03,
             .sample_rate = (uint32_t)output_sample_rate_,
-            .mclk_multiple = 0,
+            //.mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(dev_, &fs));
         //ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, AUDIO_CODEC_DEFAULT_MIC_GAIN));
@@ -218,57 +229,83 @@ void Es8311AudioCodec::UpdateDeviceState() {
 void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
     assert(input_sample_rate_ == output_sample_rate_);
 
-    // 创建i2s上行、下行通道
-    i2s_chan_config_t chan_cfg = {
-        .id = I2S_NUM_0,
-        .role = I2S_ROLE_MASTER,
-        .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
-        .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
-        .auto_clear_after_cb = true,
-        .auto_clear_before_cb = false,
-        .intr_priority = 0,
-    };
+    // // 创建i2s上行、下行通道
+    // i2s_chan_config_t chan_cfg = {
+    //     .id = I2S_NUM_0,
+    //     .role = I2S_ROLE_MASTER,
+    //     .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
+    //     .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
+    //     .auto_clear_after_cb = true,
+    //     .auto_clear_before_cb = false,
+    //     .intr_priority = 0,
+    // };
+    
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);    ///////
+    chan_cfg.auto_clear = true; // Auto clear the legacy data in the DMA buffer ////////////
+    
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, nullptr));
 
-    // 初始化i2s下行通道，esp32 -> es8311
+    // // 初始化i2s下行通道，esp32 -> es8311
+    // =======================================================
     i2s_std_config_t std_cfg = {
-        .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
-				.ext_clk_freq_hz = 0,
-			#endif
-        },
-        .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .ws_pol = false,
-            .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2   
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
-            #endif
-        },
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(output_sample_rate_)),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .mclk = mclk,
             .bclk = bclk,
             .ws = ws,
             .dout = dout,
-            .din = GPIO_NUM_NC,
+            .din = GPIO_NUM_NC,  // Keep for compatibility but won't be used
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
-                .ws_inv = false
-            }
-        }
+                .ws_inv = false,
+            },
+        },
     };
+    std_cfg.clk_cfg.mclk_multiple = EXAMPLE_I2S_MCLK_MULTIPLE;
+
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
+
+    // ========================================================
+    // i2s_std_config_t std_cfg = {
+    //     .clk_cfg = {
+    //         .sample_rate_hz = (uint32_t)output_sample_rate_,
+    //         .clk_src = I2S_CLK_SRC_DEFAULT,
+    //         .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+	// 		#ifdef   I2S_HW_VERSION_2    
+	// 			.ext_clk_freq_hz = 0,
+	// 		#endif
+    //     },
+    //     .slot_cfg = {
+    //         .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+    //         .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+    //         .slot_mode = I2S_SLOT_MODE_STEREO,
+    //         .slot_mask = I2S_STD_SLOT_BOTH,
+    //         .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+    //         .ws_pol = false,
+    //         .bit_shift = true,
+    //         #ifdef   I2S_HW_VERSION_2   
+    //             .left_align = true,
+    //             .big_endian = false,
+    //             .bit_order_lsb = false
+    //         #endif
+    //     },
+    //     .gpio_cfg = {
+    //         .mclk = mclk,
+    //         .bclk = bclk,
+    //         .ws = ws,
+    //         .dout = dout,
+    //         .din = GPIO_NUM_NC,
+    //         .invert_flags = {
+    //             .mclk_inv = false,
+    //             .bclk_inv = false,
+    //             .ws_inv = false
+    //         }
+    //     }
+    // };
+    // ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
 
 
     // =====================================================================
