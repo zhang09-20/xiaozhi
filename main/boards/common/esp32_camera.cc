@@ -20,7 +20,7 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
     }
 
     sensor_t *s = esp_camera_sensor_get(); // 获取摄像头型号
-    if (s->id.PID == GC0308_PID) {
+    if (s->id.PID == OV2640_PID) {
         s->set_hmirror(s, 0);  // 这里控制摄像头镜像 写1镜像 写0不镜像
     }
 

@@ -120,7 +120,7 @@ private:
         config.pin_pclk = CAMERA_PIN_PCLK;
         config.pin_vsync = CAMERA_PIN_VSYNC;
         config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = CAMERA_PIN_SIOD;  
+        config.pin_sccb_sda = -1;  
         config.pin_sccb_scl = CAMERA_PIN_SIOC;
         config.sccb_i2c_port = 0;
         config.pin_pwdn = CAMERA_PIN_PWDN;
@@ -132,8 +132,11 @@ private:
         config.fb_count = 1;
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        //ESP_LOGI(TAG,"开始创建摄像头实例111");
         camera_ = new Esp32Camera(config);
+        //ESP_LOGI(TAG,"开始创建摄像头实例222");
         camera_->SetHMirror(false);
+        //ESP_LOGI(TAG,"开始创建摄像头实例333");
     }
 
 
@@ -375,7 +378,21 @@ public:
         // 读取几个寄存器
         //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-        for (size_t i = 0x00; i <= 0x1C; i++) {
+        for (size_t i = 0x00; i <= 0x45; i++) {
+            uint8_t reg_addr = i;
+            uint8_t reg_val = 0;            
+            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+            } else {
+                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+            }
+            if((i%8)==0){
+                printf("\n");
+            }
+        }
+        printf("\n");
+        for (size_t i = 0xFA; i <= 0xff; i++) {
             uint8_t reg_addr = i;
             uint8_t reg_val = 0;            
             ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
@@ -386,38 +403,6 @@ public:
             }
         }
 
-        for (size_t i = 0x31; i <= 0x37; i++) {
-            uint8_t reg_addr = i;
-            uint8_t reg_val = 0;            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-            } else {
-                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-            }
-        }
-
-        for (size_t i = 0x44; i <= 0x45; i++) {
-            uint8_t reg_addr = i;
-            uint8_t reg_val = 0;            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-            } else {
-                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-            }
-        }
-
-        for (size_t i = 0xFD; i <= 0xFF; i++) {
-            uint8_t reg_addr = i;
-            uint8_t reg_val = 0;            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-            } else {
-                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-            }
-        }
         
         // 清理设备句柄
         i2c_master_bus_rm_device(es8311_dev);
@@ -454,11 +439,11 @@ public:
 
         InitializeButtons();
         // ********************* audio_i2c、camera ****************************
-        //InitializeCamera();
-
         InitializeI2c();
+
+        InitializeCamera();
         //vTaskDelay(pdMS_TO_TICKS(100));   
-        //verify_es8311_communication();
+        verify_es8311_communication();
         // ****************************************************************
 
 #ifdef LCD_TYPE_ST7789_SPI_240X320_my
@@ -541,8 +526,15 @@ public:
 #endif
         return nullptr;
     }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
+
 };
 
-uint8_t MyWifiBoardLCD::test_flag = 0;
+
+
+uint8_t MyWifiBoardLCD::test_flag = 1;
 
 DECLARE_BOARD(MyWifiBoardLCD);
