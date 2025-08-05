@@ -29,12 +29,15 @@
 
 
 // *******************************************************
+#include "audio/codecs/box_audio_codec.h"
 #include "audio/codecs/es8311_audio_codec.h"
 
 #include "esp32_camera.h"
 //#include "audio/codecs/i2s_es7210_audio_codec.h"
 #include <math.h>
     // ... 其他 include
+//#include <reg52.h>
+// #include <board.h>
 
 // // 函数声明
 // static void mclk_task(void *arg);
@@ -443,7 +446,7 @@ public:
 
         InitializeCamera();
         //vTaskDelay(pdMS_TO_TICKS(100));   
-        verify_es8311_communication();
+        //verify_es8311_communication();
         // ****************************************************************
 
 #ifdef LCD_TYPE_ST7789_SPI_240X320_my
@@ -452,7 +455,6 @@ public:
         } 
 #elif defined(OLED_TYPE_SSD1306_I2C_128X64_test)
 #endif
-
     }
 
     //获取 led 灯
@@ -478,6 +480,19 @@ public:
 //     }
 
 
+    // void ES8311_ADC_Standby(void)//ADC��������--����ES8311_ADC_Resume
+    // {
+    //     I2CWRNBYTE_CODEC(0x17,0x00);
+    //     I2CWRNBYTE_CODEC(0x0A,0x40);
+    //     I2CWRNBYTE_CODEC(0x0E,0x5F);
+    //     I2CWRNBYTE_CODEC(0x14,0x00);    
+    //     I2CWRNBYTE_CODEC(0x0D,0x31)
+    //     I2CWRNBYTE_CODEC(0x15,0x00);
+    //     I2CWRNBYTE_CODEC(0x37,0x08);
+    //     I2CWRNBYTE_CODEC(0x00,0x82);
+    //     I2CWRNBYTE_CODEC(0x01,0x35);
+    // }
+
     static uint8_t test_flag;
     //获取音频编、解码器 2，es8311
     virtual AudioCodec* GetAudioCodec() override {
@@ -497,13 +512,14 @@ public:
             AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)
             
             AUDIO_CODEC_ES8311_ADDR,        // ES8311 I2C 地址
-            AUDIO_CODEC_ES7210_I2C_ADDR     // ES7210 I2C 地址
+            AUDIO_CODEC_ES7210_I2C_ADDR,     // ES7210 I2C 地址
+            true
         );
 
-        if (!test_flag) {
-            verify_es8311_communication();
-            test_flag ++;
-        }
+        // if (!test_flag) {
+        //     verify_es8311_communication();
+        //     test_flag ++;
+        // }
         
         return &audio_codec;
     }

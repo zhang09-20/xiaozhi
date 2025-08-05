@@ -5,6 +5,7 @@
 
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
+
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
@@ -14,7 +15,7 @@
 // =====================================================
 // 麦克风检测配置
 #define ENABLE_MIC_DETECTION 1  // 启用麦克风检测
-#define MIC_DETECTION_SIMPLE  1  // 使用简化检测方案
+#define MIC_DETECTION_SIMPLE 1  // 使用简化检测方案
 // =====================================================
 
 
@@ -72,6 +73,8 @@ private:
 
 
     // =====================================================
+    i2c_master_bus_handle_t i2c_bus_ = nullptr;
+    bool verify_es8311_communication();
     // 麦克风检测相关
     bool mic1_working_ = true;
     bool mic2_working_ = true;
