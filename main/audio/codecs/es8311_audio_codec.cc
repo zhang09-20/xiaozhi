@@ -70,13 +70,13 @@ Es8311AudioCodec::Es8311AudioCodec( void* i2c_master_handle, i2c_port_t i2c_port
     // =====================================================
     i2c_cfg.addr = es7210_addr;    
     ctrl_if_7210 = audio_codec_new_i2c_ctrl(&i2c_cfg);
-    assert(ctrl_if_7210);
+    assert(ctrl_if_7210 != NULL);
 
     es7210_codec_cfg_t es7210_cfg = {};
     es7210_cfg.ctrl_if = ctrl_if_7210;
-    es7210_cfg.mic_selected = EXAMPLE_ES7210_MIC_SELECTED;    
+    es7210_cfg.mic_selected = 0x03;    
     codec_if_7210 = es7210_codec_new(&es7210_cfg);
-    assert(codec_if_7210);
+    assert(codec_if_7210 != NULL);
 
     // =======================================================
 
@@ -127,11 +127,11 @@ void Es8311AudioCodec::UpdateDeviceState() {
     }
 
     // ==============================================================
-    if (input_enabled_  && dev_7210 == nullptr) {
+    if (input_enabled_ && dev_7210 == nullptr) {
         esp_codec_dev_cfg_t dev_cfg = {
             .dev_type = ESP_CODEC_DEV_TYPE_IN,
             .codec_if = codec_if_7210,
-            .data_if = data_if_7210,
+            .data_if = data_if_,
         };
         dev_7210 = esp_codec_dev_new(&dev_cfg);
         assert(dev_7210 != NULL);

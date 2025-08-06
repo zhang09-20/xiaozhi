@@ -480,26 +480,15 @@ public:
 //     }
 
 
-    // void ES8311_ADC_Standby(void)//ADC��������--����ES8311_ADC_Resume
-    // {
-    //     I2CWRNBYTE_CODEC(0x17,0x00);
-    //     I2CWRNBYTE_CODEC(0x0A,0x40);
-    //     I2CWRNBYTE_CODEC(0x0E,0x5F);
-    //     I2CWRNBYTE_CODEC(0x14,0x00);    
-    //     I2CWRNBYTE_CODEC(0x0D,0x31)
-    //     I2CWRNBYTE_CODEC(0x15,0x00);
-    //     I2CWRNBYTE_CODEC(0x37,0x08);
-    //     I2CWRNBYTE_CODEC(0x00,0x82);
-    //     I2CWRNBYTE_CODEC(0x01,0x35);
-    // }
+
 
     static uint8_t test_flag;
     //获取音频编、解码器 2，es8311
     virtual AudioCodec* GetAudioCodec() override {
         // 2. 实例化 ES8311 编解码器
-        static Es8311AudioCodec audio_codec(
+        static BoxAudioCodec audio_codec(
             i2c_bus_,                   // I2C 句柄
-            I2C_NUM_0,                  // I2C 端口号
+            //I2C_NUM_0,                  // I2C 端口号
             AUDIO_INPUT_SAMPLE_RATE,    // 输入采样率
             AUDIO_OUTPUT_SAMPLE_RATE,   // 输出采样率
 
