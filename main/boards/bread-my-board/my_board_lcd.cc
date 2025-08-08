@@ -269,6 +269,8 @@ private:
         
         ESP_LOGI(TAG, "File size: %ld bytes", file_size);
         
+        std::string file_name = "RECORD.WAV";
+
         // 检查文件扩展名，处理WAV文件头
         size_t header_skip = 0;
         std::string lower_filename = file_name;
@@ -464,6 +466,7 @@ private:
         ESP_LOGI(TAG, "File size: %ld bytes", file_size);
         
         // 检查文件扩展名，处理WAV文件头
+        //std::string file_name = "RECORD.WAV";
         size_t header_skip = 0;
         std::string lower_filename = file_name;
         std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
