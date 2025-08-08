@@ -102,20 +102,20 @@ private:
 
     // ********************************************************
     
-    void print_sdcard_info(const sdmmc_card_t* card) {
-        if (!card) {
-            ESP_LOGE("SD", "Card pointer is NULL");
-            return;
-        }
+    // void print_sdcard_info(const sdmmc_card_t* card) {
+    //     if (!card) {
+    //         ESP_LOGE("SD", "Card pointer is NULL");
+    //         return;
+    //     }
 
-        uint64_t capacity_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
-        ESP_LOGI("SD", "Name: %s", card->cid.name);
-        ESP_LOGI("SD", "Type: %s", (card->ocr & SD_OCR_SDHC_CAP) ? "SDHC" : "SDSC");
-        ESP_LOGI("SD", "Capacity: %" PRIu64 " bytes (%.2f MB)", capacity_bytes, capacity_bytes / (1024.0 * 1024.0));
-        ESP_LOGI("SD", "CSD Version: %d, Sector size: %d, Capacity: %" PRIu64, 
-                card->csd.csd_ver, card->csd.sector_size, (uint64_t)card->csd.capacity);
-        ESP_LOGI("SD", "Bus Width: %d-bit", (card->host->flags & SDMMC_HOST_FLAG_4BIT) ? 4 : 1);
-    }
+    //     uint64_t capacity_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
+    //     ESP_LOGI("SD", "Name: %s", card->cid.name);
+    //     ESP_LOGI("SD", "Type: %s", (card->ocr & SD_OCR_SDHC_CAP) ? "SDHC" : "SDSC");
+    //     ESP_LOGI("SD", "Capacity: %" PRIu64 " bytes (%.2f MB)", capacity_bytes, capacity_bytes / (1024.0 * 1024.0));
+    //     ESP_LOGI("SD", "CSD Version: %d, Sector size: %d, Capacity: %" PRIu64, 
+    //             card->csd.csd_ver, card->csd.sector_size, (uint64_t)card->csd.capacity);
+    //     ESP_LOGI("SD", "Bus Width: %d-bit", (card->host->flags & SDMMC_HOST_FLAG_4BIT) ? 4 : 1);
+    // }
 
     void InitializeSDCard(){
         esp_err_t ret;
@@ -235,8 +235,8 @@ private:
     
         // 8、打印卡属性
         // Card has been initialized, print its properties
-        //sdmmc_card_print_info(stdout, card);
-        print_sdcard_info(card);
+        sdmmc_card_print_info(stdout, card);
+        //print_sdcard_info(card);
     }
 
 
