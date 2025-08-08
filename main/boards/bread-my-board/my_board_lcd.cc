@@ -241,11 +241,12 @@ private:
 
 
 
-    bool PlayLocalMusic(const std::string& file_name) {
-        ESP_LOGI(TAG, "Playing local music: %s", file_name.c_str());
+    //bool PlayLocalMusic(const std::string& file_name) 
+    bool PlayLocalMusic(){
+        ESP_LOGI(TAG, "Playing local music");
         
         // 构建完整的文件路径
-        std::string file_path = "/sdcard/" + file_name;
+        std::string file_path = "/sdcard/RECORD.WAV";
         
         // 检查文件是否存在
         struct stat st;
@@ -300,7 +301,7 @@ private:
         }
         
         fclose(file);
-        ESP_LOGI(TAG, "Finished playing: %s", file_name.c_str());
+        ESP_LOGI(TAG, "Finished playing: %s", file_path.c_str());
         return true;
     }
 
@@ -382,7 +383,7 @@ private:
         }
         
         // 播放新文件
-        PlayLocalMusic(next_file);
+        PlayLocalMusic();
         return true;
     }
 
@@ -393,7 +394,8 @@ private:
         StopMusic();
         
         // 构建完整的文件路径
-        std::string file_path = "/sdcard/" + file_name;
+        //std::string file_path = "/sdcard/test" + file_name;
+        std::string file_path = "/sdcard/test.wav";
         
         // 检查文件是否存在
         struct stat st;
@@ -459,25 +461,36 @@ private:
     }
     
 
+    bool test_print(){
+        ESP_LOGI(TAG,"************** test_print ******************");
+        return true;
+    }
 
     // 创建自定义工具，用于读取sd卡数据，播放音乐
     void CreateCustomTool() {
-        // 添加播放音乐工具
-        McpServer::GetInstance().AddTool("self.audio.play_local_music",
-            "播放SD卡中的音乐文件。支持播放指定文件名的音乐。\n"
-            "Use this tool when the user wants to play music from the local SD card.\n"
-            "Args:\n"
-            "  `file_name`: The name of the music file to play (e.g. 'song1.mp3', 'music.wav')",
-            PropertyList({
-                Property("file_name", kPropertyTypeString)
-            }),
+        auto& mcp_server = McpServer::GetInstance();
+        
+        mcp_server.AddTool("self.print_info",
+            //"打印一行预设好的用于测试的，提示信息\n"
+            "打印",
+            PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
-                auto file_name = properties["file_name"].value<std::string>();
-                return PlayLocalMusic(file_name);
+                return test_print();
+            });
+        // 添加播放音乐工具
+        mcp_server.AddTool("self.audio.play_local_music",
+            "播放本地音乐",
+            // "Use this tool when the user wants to play music from the local SD card.\n"
+            // "Args:\n"
+            // "  `file_name`: The name of the music file to play (e.g. 'song1.mp3', 'music.wav')",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                //auto file_name = properties["file_name"].value<std::string>();
+                return PlayLocalMusic();
             });
 
         // 添加停止播放音乐工具
-        McpServer::GetInstance().AddTool("self.audio.stop_music",
+        mcp_server.AddTool("self.audio.stop_music",
             "停止当前正在播放的音乐。\n"
             "Use this tool when the user wants to stop the currently playing music.",
             PropertyList(),
@@ -486,7 +499,7 @@ private:
             });
 
         // // 添加切换音乐工具
-        // McpServer::GetInstance().AddTool("self.audio.switch_music",
+        // mcp_server.AddTool("self.audio.switch_music",
         //     "切换到下一个或上一个音乐文件。\n"
         //     "Use this tool when the user wants to play the next or previous song.\n"
         //     "Args:\n"
@@ -500,7 +513,7 @@ private:
         //     });
 
         // // 添加播放指定音乐工具
-        // McpServer::GetInstance().AddTool("self.audio.play_local_des_music",
+        // mcp_server.AddTool("self.audio.play_local_des_music",
         //     "播放SD卡中的音乐文件。支持播放指定文件名的音乐。\n"
         //     "Use this tool when the user wants to play music from the local SD card.\n"
         //     "Args:\n"
@@ -880,7 +893,7 @@ public:
 
         InitializeSDCard();
 
-        //CreateCustomTool();
+        CreateCustomTool();
 
         //verify_es8311_communication();
         // ****************************************************************
