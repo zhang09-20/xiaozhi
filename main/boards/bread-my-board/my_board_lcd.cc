@@ -273,23 +273,49 @@ private:
 
         // 检查文件扩展名，处理WAV文件头
         size_t header_skip = 0;
+        int sample_rate = 16000;  // 默认采样率
+        int channels = 1;          // 默认单声道
+        int bits_per_sample = 16;  // 默认16位
         std::string lower_filename = file_name;
         std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
         
         if (lower_filename.find(".wav") != std::string::npos) {
-            // WAV文件，跳过44字节的文件头
-            header_skip = 44;
-            ESP_LOGI(TAG, "Detected WAV file, skipping %zu bytes header", header_skip);
+            // WAV文件，解析文件头获取音频参数
+            ESP_LOGI(TAG, "Detected WAV file, parsing header...");
             
-            // 验证WAV文件头
-            char wav_header[12];
-            if (fread(wav_header, 1, 12, file) == 12) {
+            // 读取WAV文件头
+            char wav_header[44];
+            if (fread(wav_header, 1, 44, file) == 44) {
                 if (strncmp(wav_header, "RIFF", 4) == 0 && strncmp(wav_header + 8, "WAVE", 4) == 0) {
                     ESP_LOGI(TAG, "Valid WAV file header detected");
+                    
+                    // 解析音频格式参数
+                    // 采样率在字节24-27
+                    sample_rate = *(uint32_t*)(wav_header + 24);
+                    // 声道数在字节22-23
+                    channels = *(uint16_t*)(wav_header + 22);
+                    // 位深度在字节34-35
+                    bits_per_sample = *(uint16_t*)(wav_header + 34);
+                    
+                    ESP_LOGI(TAG, "WAV format: %d Hz, %d channels, %d bits", 
+                             sample_rate, channels, bits_per_sample);
+                    
+                    // 检查是否支持
+                    if (sample_rate != 16000) {
+                        ESP_LOGW(TAG, "Warning: WAV sample rate %d Hz, expected 16000 Hz", sample_rate);
+                    }
+                    if (channels != 1) {
+                        ESP_LOGW(TAG, "Warning: WAV has %d channels, expected 1", channels);
+                    }
+                    if (bits_per_sample != 16) {
+                        ESP_LOGW(TAG, "Warning: WAV has %d bits per sample, expected 16", bits_per_sample);
+                    }
+                    
+                    header_skip = 44;
                 } else {
                     ESP_LOGW(TAG, "Invalid WAV file header, treating as raw audio");
                     header_skip = 0;
-                    fseek(file, 0, SEEK_SET);  // 重新定位到文件开头
+                    fseek(file, 0, SEEK_SET);
                 }
             } else {
                 ESP_LOGW(TAG, "Failed to read WAV header, treating as raw audio");
@@ -297,10 +323,8 @@ private:
                 fseek(file, 0, SEEK_SET);
             }
         } else if (lower_filename.find(".p3") != std::string::npos) {
-            // P3文件，跳过文件头（如果有的话）
             ESP_LOGI(TAG, "Detected P3 file");
         } else {
-            // 其他格式，按原始音频处理
             ESP_LOGI(TAG, "Treating as raw audio file");
         }
         
@@ -310,18 +334,34 @@ private:
             ESP_LOGI(TAG, "Skipped %zu bytes header, audio data starts at offset %zu", header_skip, header_skip);
         }
         
-        // 读取文件内容并推送到解码队列
-        const size_t buffer_size = 1024;
-        uint8_t buffer[buffer_size];
-        size_t bytes_read;
+        // 计算正确的音频帧大小
+        // 对于16kHz单声道16位音频，60ms帧 = 16000 * 0.06 * 2 = 1920字节
+        size_t frame_size = (sample_rate * 60 / 1000) * channels * (bits_per_sample / 8);
+        ESP_LOGI(TAG, "Audio frame size: %zu bytes (for %dms at %d Hz)", frame_size, 60, sample_rate);
         
-        while ((bytes_read = fread(buffer, 1, buffer_size, file)) > 0) {
+        // 读取文件内容并推送到解码队列
+        std::vector<uint8_t> buffer(frame_size);
+        size_t total_bytes_read = 0;
+        int packet_count = 0;
+        
+        while (true) {
+            size_t bytes_read = fread(buffer.data(), 1, frame_size, file);
+            if (bytes_read == 0) {
+                break;  // 文件结束
+            }
+            
+            // 如果读取的数据不足一个完整帧，用零填充
+            if (bytes_read < frame_size) {
+                ESP_LOGI(TAG, "Last frame: %zu bytes (partial)", bytes_read);
+                std::fill(buffer.begin() + bytes_read, buffer.end(), 0);
+            }
+            
             // 创建音频流包
             auto packet = std::make_unique<AudioStreamPacket>();
-            packet->sample_rate = 16000;  // 假设16kHz采样率
+            packet->sample_rate = sample_rate;
             packet->frame_duration = 60;   // 60ms帧长度
-            packet->payload.resize(bytes_read);
-            memcpy(packet->payload.data(), buffer, bytes_read);
+            packet->payload.resize(frame_size);
+            memcpy(packet->payload.data(), buffer.data(), frame_size);
             
             // 推送到音频解码队列
             auto& app = Application::GetInstance();
@@ -330,19 +370,25 @@ private:
             if (!success) {
                 // 队列满了，等待一下再继续
                 ESP_LOGW(TAG, "Decode queue is full, waiting...");
-                vTaskDelay(pdMS_TO_TICKS(50));  // 等待50ms
-                continue;  // 重新尝试推送当前数据包
+                vTaskDelay(pdMS_TO_TICKS(50));
+                continue;
             }
-      
-            ESP_LOGI(TAG, "Pushed %zu bytes to decode queue", bytes_read);
+            
+            total_bytes_read += bytes_read;
+            packet_count++;
+            
+            if (packet_count % 10 == 0) {  // 每10个包打印一次进度
+                ESP_LOGI(TAG, "Progress: %d packets, %zu bytes", packet_count, total_bytes_read);
+            }
             
             // 添加适当延迟，控制推送速度
-            // 1024字节在16kHz采样率下大约对应32ms的音频
-            vTaskDelay(pdMS_TO_TICKS(30));  // 延迟30ms
+            // 60ms音频帧对应60ms延迟
+            vTaskDelay(pdMS_TO_TICKS(60));
         }
         
         fclose(file);
-        ESP_LOGI(TAG, "Finished playing: %s", file_path.c_str());
+        ESP_LOGI(TAG, "Finished playing: %s (total: %d packets, %zu bytes)", 
+                 file_path.c_str(), packet_count, total_bytes_read);
         return true;
     }
 
