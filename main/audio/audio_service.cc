@@ -152,8 +152,9 @@ void AudioService::Stop() {
 
 bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples) {
     if (!codec_->input_enabled()) {
-        codec_->EnableInput(true);
+        esp_timer_stop(audio_power_timer_);
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+        codec_->EnableInput(true);
     }
 
     if (codec_->input_sample_rate() != sample_rate) {
@@ -286,36 +287,12 @@ void AudioService::AudioOutputTask() {
         audio_queue_cv_.notify_all();
         lock.unlock();
 
-        // 添加调试信息
-        ESP_LOGD(TAG, "AudioOutputTask: Processing %zu samples", task->pcm.size());
-        
-        // 检查音频数据是否有效
-        if (task->pcm.empty()) {
-            ESP_LOGW(TAG, "AudioOutputTask: Empty PCM data received");
-            continue;
-        }
-        
-        // 检查音频数据范围
-        int16_t min_val = *std::min_element(task->pcm.begin(), task->pcm.end());
-        int16_t max_val = *std::max_element(task->pcm.begin(), task->pcm.end());
-        if (min_val == 0 && max_val == 0) {
-            ESP_LOGW(TAG, "AudioOutputTask: Silent audio data detected");
-        } else {
-            ESP_LOGD(TAG, "AudioOutputTask: Audio range [%d, %d]", min_val, max_val);
-        }
-
         if (!codec_->output_enabled()) {
-            ESP_LOGI(TAG, "AudioOutputTask: Enabling audio output");
-            codec_->EnableOutput(true);
+            esp_timer_stop(audio_power_timer_);
             esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+            codec_->EnableOutput(true);
         }
-        
-        // 输出音频数据
-        int samples_written = codec_->OutputData(task->pcm);
-        if (samples_written != task->pcm.size()) {
-            ESP_LOGW(TAG, "AudioOutputTask: Expected to write %zu samples, but wrote %d", 
-                     task->pcm.size(), samples_written);
-        }
+        codec_->OutputData(task->pcm);
 
         /* Update the last output time */
         last_output_time_ = std::chrono::steady_clock::now();
@@ -352,45 +329,25 @@ void AudioService::OpusCodecTask() {
             audio_queue_cv_.notify_all();
             lock.unlock();
 
-            ESP_LOGD(TAG, "OpusCodecTask: Decoding packet with %zu bytes, sample_rate=%d, frame_duration=%d", 
-                     packet->payload.size(), packet->sample_rate, packet->frame_duration);
-
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
             task->timestamp = packet->timestamp;
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             if (opus_decoder_->Decode(std::move(packet->payload), task->pcm)) {
-                ESP_LOGD(TAG, "OpusCodecTask: Successfully decoded %zu PCM samples", task->pcm.size());
-                
-                // 检查解码后的PCM数据
-                if (!task->pcm.empty()) {
-                    int16_t min_val = *std::min_element(task->pcm.begin(), task->pcm.end());
-                    int16_t max_val = *std::max_element(task->pcm.begin(), task->pcm.end());
-                    ESP_LOGD(TAG, "OpusCodecTask: Decoded PCM range [%d, %d]", min_val, max_val);
-                    
-                    if (min_val == 0 && max_val == 0) {
-                        ESP_LOGW(TAG, "OpusCodecTask: Decoded silent audio");
-                    }
-                } else {
-                    ESP_LOGW(TAG, "OpusCodecTask: Decoded empty PCM data");
-                }
-                
                 // Resample if the sample rate is different
                 if (opus_decoder_->sample_rate() != codec_->output_sample_rate()) {
                     int target_size = output_resampler_.GetOutputSamples(task->pcm.size());
                     std::vector<int16_t> resampled(target_size);
                     output_resampler_.Process(task->pcm.data(), task->pcm.size(), resampled.data());
                     task->pcm = std::move(resampled);
-                    ESP_LOGD(TAG, "OpusCodecTask: Resampled from %d to %d samples", 
-                             opus_decoder_->sample_rate(), codec_->output_sample_rate());
                 }
 
                 lock.lock();
                 audio_playback_queue_.push_back(std::move(task));
                 audio_queue_cv_.notify_all();
             } else {
-                ESP_LOGE(TAG, "Failed to decode audio packet");
+                ESP_LOGE(TAG, "Failed to decode audio");
                 lock.lock();
             }
             debug_statistics_.decode_count++;
@@ -569,6 +526,11 @@ void AudioService::EnableAudioTesting(bool enable) {
 
 void AudioService::EnableDeviceAec(bool enable) {
     ESP_LOGI(TAG, "%s device AEC", enable ? "Enabling" : "Disabling");
+    if (!audio_processor_initialized_) {
+        audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS);
+        audio_processor_initialized_ = true;
+    }
+
     audio_processor_->EnableDeviceAec(enable);
 }
 
