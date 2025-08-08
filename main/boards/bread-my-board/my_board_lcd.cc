@@ -269,6 +269,45 @@ private:
         
         ESP_LOGI(TAG, "File size: %ld bytes", file_size);
         
+        // 检查文件扩展名，处理WAV文件头
+        size_t header_skip = 0;
+        std::string lower_filename = file_name;
+        std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
+        
+        if (lower_filename.find(".wav") != std::string::npos) {
+            // WAV文件，跳过44字节的文件头
+            header_skip = 44;
+            ESP_LOGI(TAG, "Detected WAV file, skipping %zu bytes header", header_skip);
+            
+            // 验证WAV文件头
+            char wav_header[12];
+            if (fread(wav_header, 1, 12, file) == 12) {
+                if (strncmp(wav_header, "RIFF", 4) == 0 && strncmp(wav_header + 8, "WAVE", 4) == 0) {
+                    ESP_LOGI(TAG, "Valid WAV file header detected");
+                } else {
+                    ESP_LOGW(TAG, "Invalid WAV file header, treating as raw audio");
+                    header_skip = 0;
+                    fseek(file, 0, SEEK_SET);  // 重新定位到文件开头
+                }
+            } else {
+                ESP_LOGW(TAG, "Failed to read WAV header, treating as raw audio");
+                header_skip = 0;
+                fseek(file, 0, SEEK_SET);
+            }
+        } else if (lower_filename.find(".p3") != std::string::npos) {
+            // P3文件，跳过文件头（如果有的话）
+            ESP_LOGI(TAG, "Detected P3 file");
+        } else {
+            // 其他格式，按原始音频处理
+            ESP_LOGI(TAG, "Treating as raw audio file");
+        }
+        
+        // 如果跳过了头部，重新定位文件指针
+        if (header_skip > 0) {
+            fseek(file, header_skip, SEEK_SET);
+            ESP_LOGI(TAG, "Skipped %zu bytes header, audio data starts at offset %zu", header_skip, header_skip);
+        }
+        
         // 读取文件内容并推送到解码队列
         const size_t buffer_size = 1024;
         uint8_t buffer[buffer_size];
@@ -423,6 +462,46 @@ private:
         fseek(file, 0, SEEK_SET);
         
         ESP_LOGI(TAG, "File size: %ld bytes", file_size);
+        
+        // 检查文件扩展名，处理WAV文件头
+        size_t header_skip = 0;
+        std::string lower_filename = file_name;
+        std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
+        
+        if (lower_filename.find(".wav") != std::string::npos) {
+            // WAV文件，跳过44字节的文件头
+            header_skip = 44;
+            ESP_LOGI(TAG, "Detected WAV file, skipping %zu bytes header", header_skip);
+            
+            // 验证WAV文件头
+            char wav_header[12];
+            if (fread(wav_header, 1, 12, file) == 12) {
+                if (strncmp(wav_header, "RIFF", 4) == 0 && strncmp(wav_header + 8, "WAVE", 4) == 0) {
+                    ESP_LOGI(TAG, "Valid WAV file header detected");
+                } else {
+                    ESP_LOGW(TAG, "Invalid WAV file header, treating as raw audio");
+                    header_skip = 0;
+                    fseek(file, 0, SEEK_SET);  // 重新定位到文件开头
+                }
+            } else {
+                ESP_LOGW(TAG, "Failed to read WAV header, treating as raw audio");
+                header_skip = 0;
+                fseek(file, 0, SEEK_SET);
+            }
+        } else if (lower_filename.find(".p3") != std::string::npos) {
+            // P3文件，跳过文件头（如果有的话）
+            // 这里可以根据P3文件格式调整
+            ESP_LOGI(TAG, "Detected P3 file");
+        } else {
+            // 其他格式，按原始音频处理
+            ESP_LOGI(TAG, "Treating as raw audio file");
+        }
+        
+        // 如果跳过了头部，重新定位文件指针
+        if (header_skip > 0) {
+            fseek(file, header_skip, SEEK_SET);
+            ESP_LOGI(TAG, "Skipped %zu bytes header, audio data starts at offset %zu", header_skip, header_skip);
+        }
         
         // 读取文件内容并推送到解码队列
         const size_t buffer_size = 1024;
