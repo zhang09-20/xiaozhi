@@ -339,7 +339,19 @@ private:
         size_t frame_size = (sample_rate * 60 / 1000) * channels * (bits_per_sample / 8);
         ESP_LOGI(TAG, "Audio frame size: %zu bytes (for %dms at %d Hz)", frame_size, 60, sample_rate);
         
-        // 读取文件内容并推送到解码队列
+        // 直接推送到播放队列，跳过Opus解码
+        // 因为这是原始PCM数据，不需要解码
+        auto& app = Application::GetInstance();
+        auto& audio_service = app.GetAudioService();
+        
+        // 启用音频输出
+        auto codec = Board::GetInstance().GetAudioCodec();
+        if (codec) {
+            codec->EnableOutput(true);
+            ESP_LOGI(TAG, "Enabled audio output");
+        }
+        
+        // 读取文件内容并直接输出
         std::vector<uint8_t> buffer(frame_size);
         size_t total_bytes_read = 0;
         int packet_count = 0;
@@ -356,22 +368,13 @@ private:
                 std::fill(buffer.begin() + bytes_read, buffer.end(), 0);
             }
             
-            // 创建音频流包
-            auto packet = std::make_unique<AudioStreamPacket>();
-            packet->sample_rate = sample_rate;
-            packet->frame_duration = 60;   // 60ms帧长度
-            packet->payload.resize(frame_size);
-            memcpy(packet->payload.data(), buffer.data(), frame_size);
+            // 将字节数据转换为PCM样本
+            std::vector<int16_t> pcm_samples(frame_size / 2);  // 16位 = 2字节
+            memcpy(pcm_samples.data(), buffer.data(), frame_size);
             
-            // 推送到音频解码队列
-            auto& app = Application::GetInstance();
-            bool success = app.GetAudioService().PushPacketToDecodeQueue(std::move(packet), false);
-            
-            if (!success) {
-                // 队列满了，等待一下再继续
-                ESP_LOGW(TAG, "Decode queue is full, waiting...");
-                vTaskDelay(pdMS_TO_TICKS(50));
-                continue;
+            // 直接输出到音频编解码器
+            if (codec) {
+                codec->OutputData(pcm_samples);
             }
             
             total_bytes_read += bytes_read;
@@ -381,7 +384,7 @@ private:
                 ESP_LOGI(TAG, "Progress: %d packets, %zu bytes", packet_count, total_bytes_read);
             }
             
-            // 添加适当延迟，控制推送速度
+            // 添加适当延迟，控制播放速度
             // 60ms音频帧对应60ms延迟
             vTaskDelay(pdMS_TO_TICKS(60));
         }
