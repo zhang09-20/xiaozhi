@@ -21,6 +21,7 @@ enum PropertyType {
     kPropertyTypeString
 };
 
+// 属性类
 class Property {
 private:
     std::string name_;
@@ -121,6 +122,7 @@ public:
     }
 };
 
+// 属性列表类
 class PropertyList {
 private:
     std::vector<Property> properties_;
@@ -171,6 +173,7 @@ public:
     }
 };
 
+// 工具类
 class McpTool {
 private:
     std::string name_;
@@ -192,6 +195,7 @@ public:
     inline const std::string& description() const { return description_; }
     inline const PropertyList& properties() const { return properties_; }
 
+    // 将工具信息转换为JSON格式
     std::string to_json() const {
         std::vector<std::string> required = properties_.GetRequired();
         
@@ -223,6 +227,7 @@ public:
         return result;
     }
 
+    // 调用工具
     std::string Call(const PropertyList& properties) {
         ReturnValue return_value = callback_(properties);
         // 返回结果
@@ -249,6 +254,7 @@ public:
     }
 };
 
+// mcp 服务器类
 class McpServer {
 public:
     static McpServer& GetInstance() {

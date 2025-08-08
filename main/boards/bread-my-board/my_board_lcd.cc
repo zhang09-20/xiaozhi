@@ -1,5 +1,9 @@
 #include "wifi_board.h"
 #include "audio/codecs/no_audio_codec.h"
+//
+#include "audio/codecs/box_audio_codec.h"
+#include "audio/codecs/es8311_audio_codec.h"
+//
 #include "display/lcd_display.h"
 #include "display/oled_display.h"
 #include "system_reset.h"
@@ -22,15 +26,24 @@
 
 
 
+// *******************************************************
+#include <string.h>
+#include <sys/unistd.h>
+#include <sys/stat.h>
+#include "esp_vfs_fat.h"
+#include "sdmmc_cmd.h"
+#include "driver/sdmmc_host.h"
+//#include "sd_test_io.h"
+#if SOC_SDMMC_IO_POWER_EXTERNAL
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#endif
+
+#include <dirent.h>      // 用于 opendir, readdir
+#include <algorithm>     // 用于 std::sort, std::transform
+#include <cctype>        // 用于 ::tolower
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include <esp_lcd_panel_sh1106.h>
-
-
-
-// *******************************************************
-#include "audio/codecs/box_audio_codec.h"
-#include "audio/codecs/es8311_audio_codec.h"
 
 #include "esp32_camera.h"
 //#include "audio/codecs/i2s_es7210_audio_codec.h"
@@ -47,7 +60,7 @@
 //#define I2C_MASTER_NUM              0
 //#define I2C_MASTER_FREQ_HZ          100000  // 200kHz
 #define I2C_TIMEOUT_MS              1000
-
+#define SD_CARD_MOUNT_POINT         "sd_card"   // 挂载点
 
 #define TAG "my_board_lcd"
 
@@ -80,7 +93,383 @@ private:
     Esp32Camera* camera_;
 
 
-    // // 全局I2C总线句柄 *****************************************************
+    // ********************************************************
+    void InitializeSDCard(){
+        esp_err_t ret;
+        sdmmc_card_t* card;
+
+        // 1. fat文件系统 挂载配置
+        esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+            .format_if_mount_failed = false,    // 如果格式化失败，不进行格式化
+            .max_files = 5,
+            .allocation_unit_size = 16 * 1024,
+        };
+
+        // 2. 主机配置（默认）
+        sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+
+#if CONFIG_EXAMPLE_SDMMC_SPEED_HS   // 根据配置选择速度模式：
+        host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+#elif CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_SDR50
+        host.max_freq_khz = SDMMC_FREQ_SDR50;
+        host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#elif CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_DDR50
+        host.max_freq_khz = SDMMC_FREQ_DDR50;
+#elif CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_SDR104
+        host.max_freq_khz = SDMMC_FREQ_SDR104;
+        host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#endif
+
+        // 3. 电源控制初始化（可选）
+#if CONFIG_EXAMPLE_SD_PWR_CTRL_LDO_INTERNAL_IO
+        sd_pwr_ctrl_ldo_config_t ldo_config = {
+            .ldo_chan_id = CONFIG_EXAMPLE_SD_PWR_CTRL_LDO_IO_ID,
+        };
+        sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+        
+        ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
+            return;
+        }
+        host.pwr_ctrl_handle = pwr_ctrl_handle;
+#endif
+
+        //sdmmc_card_t* card;
+        // esp_err_t ret = esp_vfs_fat_sdmmc_mount(SD_CARD_MOUNT_POINT, &host, &mount_config, &card);
+        // if (ret != ESP_OK) {
+        //     ESP_LOGE(TAG, "SD卡挂载失败");
+        // }
+        // ESP_LOGI(TAG, "SD卡挂载成功");
+
+        // 4. 插槽配置
+        sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+
+#if EXAMPLE_IS_UHS1 // 设置UHS1标志（如果需要）
+        slot_config.flags |= SDMMC_SLOT_FLAG_UHS1;
+#endif
+
+#ifdef CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_4 // 设置总线宽度
+        slot_config.width = 4;
+#else
+        slot_config.width = 1;
+#endif
+
+#ifdef CONFIG_SOC_SDMMC_USE_GPIO_MATRIX     // 配置GPIO引脚（如果支持GPIO矩阵）
+        slot_config.clk = CONFIG_EXAMPLE_PIN_CLK;
+        slot_config.cmd = CONFIG_EXAMPLE_PIN_CMD;
+        slot_config.d0 = CONFIG_EXAMPLE_PIN_D0;
+#ifdef CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_4
+        slot_config.d1 = CONFIG_EXAMPLE_PIN_D1;
+        slot_config.d2 = CONFIG_EXAMPLE_PIN_D2;
+        slot_config.d3 = CONFIG_EXAMPLE_PIN_D3;
+#endif
+#endif
+        slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;   // 启用内部上拉电阻
+
+        // 5. 挂载文件系统
+        ESP_LOGI(TAG, "Mounting filesystem");
+        ret = esp_vfs_fat_sdmmc_mount(SD_CARD_MOUNT_POINT, &host, &slot_config, &mount_config, &card);    //mount_point
+
+
+        // 6. 错误处理
+        if (ret != ESP_OK) {
+            if (ret == ESP_FAIL) {
+                ESP_LOGE(TAG, "Failed to mount filesystem. "
+                         "If you want the card to be formatted, set the EXAMPLE_FORMAT_IF_MOUNT_FAILED menuconfig option.");
+            } else {
+                ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                         "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
+
+#ifdef CONFIG_EXAMPLE_DEBUG_PIN_CONNECTIONS
+                check_sd_card_pins(&config, pin_count);
+#endif
+            }
+            return;
+        }
+
+        // 7. 成功后的操作
+        ESP_LOGI(TAG, "Filesystem mounted");        
+        sdmmc_card_print_info(stdout, card);    // 打印SD卡信息
+    }
+
+
+
+    bool PlayLocalMusic(const std::string& file_name) {
+        ESP_LOGI(TAG, "Playing local music: %s", file_name.c_str());
+        
+        // 构建完整的文件路径
+        std::string file_path = "/sdcard/" + file_name;
+        
+        // 检查文件是否存在
+        struct stat st;
+        if (stat(file_path.c_str(), &st) != 0) {
+            ESP_LOGE(TAG, "File not found: %s", file_path.c_str());
+            return false;
+        }
+        
+        // 打开文件
+        FILE* file = fopen(file_path.c_str(), "rb");
+        if (!file) {
+            ESP_LOGE(TAG, "Failed to open file: %s", file_path.c_str());
+            return false;
+        }
+        
+        // 获取文件大小
+        fseek(file, 0, SEEK_END);
+        long file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        
+        ESP_LOGI(TAG, "File size: %ld bytes", file_size);
+        
+        // 读取文件内容并推送到解码队列
+        const size_t buffer_size = 1024;
+        uint8_t buffer[buffer_size];
+        size_t bytes_read;
+        
+        while ((bytes_read = fread(buffer, 1, buffer_size, file)) > 0) {
+            // 创建音频流包
+            auto packet = std::make_unique<AudioStreamPacket>();
+            packet->sample_rate = 16000;  // 假设16kHz采样率
+            packet->frame_duration = 60;   // 60ms帧长度
+            packet->payload.resize(bytes_read);
+            memcpy(packet->payload.data(), buffer, bytes_read);
+            
+            // 推送到音频解码队列
+            auto& app = Application::GetInstance();
+            bool success = app.GetAudioService().PushPacketToDecodeQueue(std::move(packet), false);
+            
+            if (!success) {
+                // 队列满了，等待一下再继续
+                ESP_LOGW(TAG, "Decode queue is full, waiting...");
+                vTaskDelay(pdMS_TO_TICKS(50));  // 等待50ms
+                continue;  // 重新尝试推送当前数据包
+            }
+      
+            ESP_LOGI(TAG, "Pushed %zu bytes to decode queue", bytes_read);
+            
+            // 添加适当延迟，控制推送速度
+            // 1024字节在16kHz采样率下大约对应32ms的音频
+            vTaskDelay(pdMS_TO_TICKS(30));  // 延迟30ms
+        }
+        
+        fclose(file);
+        ESP_LOGI(TAG, "Finished playing: %s", file_name.c_str());
+        return true;
+    }
+
+    bool StopMusic() {
+        ESP_LOGI(TAG, "Stopping music");
+        
+        // 获取音频服务实例
+        auto& app = Application::GetInstance();
+        auto& audio_service = app.GetAudioService();
+        
+        // 清空解码队列
+        audio_service.ResetDecoder();
+        ESP_LOGI(TAG, "Cleared decode queue");
+        
+        // 关闭音频输出
+        auto codec = Board::GetInstance().GetAudioCodec();
+        if (codec) {
+            codec->EnableOutput(false);
+            ESP_LOGI(TAG, "Disabled audio output");
+        }
+        return true;
+    }
+
+    bool SwitchMusic(const std::string& direction) {
+        ESP_LOGI(TAG, "Switching music: %s", direction.c_str());
+        
+        // 停止当前播放
+        StopMusic();
+        
+        // 扫描SD卡中的音乐文件
+        std::vector<std::string> music_files;
+        DIR* dir = opendir("/sdcard");
+        if (dir) {
+            struct dirent* entry;
+            while ((entry = readdir(dir)) != nullptr) {
+                std::string filename = entry->d_name;
+                // 检查是否是音乐文件（简单检查扩展名）
+                if (filename.length() > 4) {
+                    std::string ext = filename.substr(filename.length() - 4);
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".mp3" || ext == ".wav" || ext == ".p3") {
+                        music_files.push_back(filename);
+                    }
+                }
+            }
+            closedir(dir);
+        }
+        
+        if (music_files.empty()) {
+            ESP_LOGE(TAG, "No music files found on SD card");
+            return false;
+        }
+        
+        // 排序文件列表
+        std::sort(music_files.begin(), music_files.end());
+        
+        // 查找当前播放的文件
+        static size_t current_index = 0;
+        
+        if (direction == "next") {
+            current_index = (current_index + 1) % music_files.size();
+        } else if (direction == "previous") {
+            if (current_index == 0) {
+                current_index = music_files.size() - 1;
+            } else {
+                current_index--;
+            }
+        }
+        
+        // 播放选中的文件
+        std::string next_file = music_files[current_index];
+        ESP_LOGI(TAG, "Playing next file: %s (index: %zu/%zu)", 
+                 next_file.c_str(), current_index + 1, music_files.size());
+        
+        // 重新启用音频输出
+        auto codec = Board::GetInstance().GetAudioCodec();
+        if (codec) {
+            codec->EnableOutput(true);
+        }
+        
+        // 播放新文件
+        PlayLocalMusic(next_file);
+        return true;
+    }
+
+    bool PlayDesLocalMusic(const std::string& file_name) {
+        ESP_LOGI(TAG, "Playing designated local music: %s", file_name.c_str());
+        
+        // 先停止当前播放
+        StopMusic();
+        
+        // 构建完整的文件路径
+        std::string file_path = "/sdcard/" + file_name;
+        
+        // 检查文件是否存在
+        struct stat st;
+        if (stat(file_path.c_str(), &st) != 0) {
+            ESP_LOGE(TAG, "File not found: %s", file_path.c_str());
+            return false;
+        }
+        
+        // 重新启用音频输出
+        auto codec = Board::GetInstance().GetAudioCodec();
+        if (codec) {
+            codec->EnableOutput(true);
+        }
+        
+        // 打开文件
+        FILE* file = fopen(file_path.c_str(), "rb");
+        if (!file) {
+            ESP_LOGE(TAG, "Failed to open file: %s", file_path.c_str());
+            return false;
+        }
+        
+        // 获取文件大小
+        fseek(file, 0, SEEK_END);
+        long file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        
+        ESP_LOGI(TAG, "File size: %ld bytes", file_size);
+        
+        // 读取文件内容并推送到解码队列
+        const size_t buffer_size = 1024;
+        uint8_t buffer[buffer_size];
+        size_t bytes_read;
+        
+        while ((bytes_read = fread(buffer, 1, buffer_size, file)) > 0) {
+            // 创建音频流包
+            auto packet = std::make_unique<AudioStreamPacket>();
+            packet->sample_rate = 16000;  // 假设16kHz采样率
+            packet->frame_duration = 60;   // 60ms帧长度
+            packet->payload.resize(bytes_read);
+            memcpy(packet->payload.data(), buffer, bytes_read);
+            
+            // 推送到音频解码队列
+            auto& app = Application::GetInstance();
+            bool success = app.GetAudioService().PushPacketToDecodeQueue(std::move(packet), false);
+            
+            if (!success) {
+                // 队列满了，等待一下再继续
+                ESP_LOGW(TAG, "Decode queue is full, waiting...");
+                vTaskDelay(pdMS_TO_TICKS(50));  // 等待50ms
+                continue;  // 重新尝试推送当前数据包
+            }
+            
+            ESP_LOGI(TAG, "Pushed %zu bytes to decode queue", bytes_read);
+            
+            // 添加适当延迟，控制推送速度
+            // 1024字节在16kHz采样率下大约对应32ms的音频
+            vTaskDelay(pdMS_TO_TICKS(30));  // 延迟30ms
+        }
+        
+        fclose(file);
+        ESP_LOGI(TAG, "Finished playing designated music: %s", file_name.c_str());
+        return true;
+    }
+    
+
+
+    // 创建自定义工具，用于读取sd卡数据，播放音乐
+    void CreateCustomTool() {
+        // 添加播放音乐工具
+        McpServer::GetInstance().AddTool("self.audio.play_local_music",
+            "播放SD卡中的音乐文件。支持播放指定文件名的音乐。\n"
+            "Use this tool when the user wants to play music from the local SD card.\n"
+            "Args:\n"
+            "  `file_name`: The name of the music file to play (e.g. 'song1.mp3', 'music.wav')",
+            PropertyList({
+                Property("file_name", kPropertyTypeString)
+            }),
+            [this](const PropertyList& properties) -> ReturnValue {
+                auto file_name = properties["file_name"].value<std::string>();
+                return PlayLocalMusic(file_name);
+            });
+
+        // 添加停止播放音乐工具
+        McpServer::GetInstance().AddTool("self.audio.stop_music",
+            "停止当前正在播放的音乐。\n"
+            "Use this tool when the user wants to stop the currently playing music.",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                return StopMusic();
+            });
+
+        // // 添加切换音乐工具
+        // McpServer::GetInstance().AddTool("self.audio.switch_music",
+        //     "切换到下一个或上一个音乐文件。\n"
+        //     "Use this tool when the user wants to play the next or previous song.\n"
+        //     "Args:\n"
+        //     "  `direction`: 'next' to play next song, 'previous' to play previous song",
+        //     PropertyList({
+        //         Property("direction", kPropertyTypeString)
+        //     }),
+        //     [this](const PropertyList& properties) -> ReturnValue {
+        //         auto direction = properties["direction"].value<std::string>();
+        //         return SwitchMusic(direction);
+        //     });
+
+        // // 添加播放指定音乐工具
+        // McpServer::GetInstance().AddTool("self.audio.play_local_des_music",
+        //     "播放SD卡中的音乐文件。支持播放指定文件名的音乐。\n"
+        //     "Use this tool when the user wants to play music from the local SD card.\n"
+        //     "Args:\n"
+        //     "  `file_name`: The name of the music file to play (e.g. 'song1.mp3', 'music.wav')",
+        //     PropertyList({
+        //         Property("file_name", kPropertyTypeString)
+        //     }),
+        //     [this](const PropertyList& properties) -> ReturnValue {
+        //         auto file_name = properties["file_name"].value<std::string>();
+        //         return PlayDesLocalMusic(file_name);
+        //     });
+    }
+
+
+    // codec的 i2c总线 初始化
     i2c_master_bus_handle_t i2c_bus_ = nullptr;         // 实例变量而非静态变量
     void InitializeI2c() {
         ESP_LOGI(TAG, "初始化codec I2C总线...");     
@@ -359,67 +748,64 @@ private:
 public:
 
     //======================================================================
-
-    // 验证与ES8311的通信，读取寄存器的值
-    bool verify_es8311_communication() {
-        ESP_LOGI(TAG, "验证与ES8311的通信...");
+    // // 验证与ES8311的通信，读取寄存器的值
+    // bool verify_es8311_communication() {
+    //     ESP_LOGI(TAG, "验证与ES8311的通信...");
         
-        // 创建ES8311设备句柄
-        i2c_device_config_t es8311_dev_cfg = {
-            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = 0x18,
-            .scl_speed_hz = 100000,  // 100kHz
-        };
+    //     // 创建ES8311设备句柄
+    //     i2c_device_config_t es8311_dev_cfg = {
+    //         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+    //         .device_address = 0x18,
+    //         .scl_speed_hz = 100000,  // 100kHz
+    //     };
         
-        i2c_master_dev_handle_t es8311_dev = NULL;
-        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
-            return false;
-        }
+    //     i2c_master_dev_handle_t es8311_dev = NULL;
+    //     esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &es8311_dev_cfg, &es8311_dev);
+    //     if (ret != ESP_OK) {
+    //         ESP_LOGE(TAG, "创建ES8311设备句柄失败: %s", esp_err_to_name(ret));
+    //         return false;
+    //     }
         
-        // 读取几个寄存器
-        //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
+    //     // 读取几个寄存器
+    //     //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-        for (size_t i = 0x00; i <= 0x45; i++) {
-            uint8_t reg_addr = i;
-            uint8_t reg_val = 0;            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-            } else {
-                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-            }
-            if((i%8)==0){
-                printf("\n");
-            }
-        }
-        printf("\n");
-        for (size_t i = 0xFA; i <= 0xff; i++) {
-            uint8_t reg_addr = i;
-            uint8_t reg_val = 0;            
-            ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-            } else {
-                ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-            }
-        }
-
+    //     for (size_t i = 0x00; i <= 0x45; i++) {
+    //         uint8_t reg_addr = i;
+    //         uint8_t reg_val = 0;            
+    //         ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+    //         if (ret == ESP_OK) {
+    //             ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+    //         } else {
+    //             ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+    //         }
+    //         if((i%8)==0){
+    //             printf("\n");
+    //         }
+    //     }
+    //     printf("\n");
+    //     for (size_t i = 0xFA; i <= 0xff; i++) {
+    //         uint8_t reg_addr = i;
+    //         uint8_t reg_val = 0;            
+    //         ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+    //         if (ret == ESP_OK) {
+    //             ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+    //         } else {
+    //             ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+    //         }
+    //     }
+   
+    //     // 清理设备句柄
+    //     i2c_master_bus_rm_device(es8311_dev);
         
-        // 清理设备句柄
-        i2c_master_bus_rm_device(es8311_dev);
-        
-        // 如果至少有一个寄存器能读取成功，说明通信正常
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "ES8311通信验证成功\n");
-            return true;
-        } else {
-            ESP_LOGW(TAG, "ES8311通信验证失败\n");
-            return false;
-        }
-    }
-
+    //     // 如果至少有一个寄存器能读取成功，说明通信正常
+    //     if (ret == ESP_OK) {
+    //         ESP_LOGI(TAG, "ES8311通信验证成功\n");
+    //         return true;
+    //     } else {
+    //         ESP_LOGW(TAG, "ES8311通信验证失败\n");
+    //         return false;
+    //     }
+    // }
     //=======================================================================================
 
 
@@ -439,13 +825,17 @@ public:
         InitializeDisplayI2c();
         InitializeSsd1306Display();
 #endif
-
         InitializeButtons();
-        // ********************* audio_i2c、camera ****************************
+
+        // ********************* audio_i2c、camera、sd_scard ****************************
         InitializeI2c();
 
         InitializeCamera();
-        //vTaskDelay(pdMS_TO_TICKS(100));   
+
+        InitializeSDCard();
+
+        //CreateCustomTool();
+
         //verify_es8311_communication();
         // ****************************************************************
 
@@ -498,8 +888,7 @@ public:
             AUDIO_CODEC_I2S_DO_PIN,     // DSDIN
             AUDIO_CODEC_I2S_DI_PIN,     // ASDOUT
 
-            AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)
-            
+            AUDIO_CODEC_NS4150_PIN,         // PA_PIN（如有功放控制脚，否则用 GPIO_NUM_NC)        
             AUDIO_CODEC_ES8311_ADDR,        // ES8311 I2C 地址
             AUDIO_CODEC_ES7210_I2C_ADDR,     // ES7210 I2C 地址
             true

@@ -7,6 +7,7 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
 
+
 // 音频编解码器 引脚定义
 //#define AUDIO_CODEC_ES8311_RX_TX          // 如果使用 es8311 RX + TX，不用处理，否则注释掉本行
 #define AUDIO_CODEC_ES7210_RX_ES8311_TX   // 如果使用 es7210-RX + es8311-TX，不用处理，否则注释掉本行
@@ -23,7 +24,7 @@
 #define AUDIO_CODEC_I2S_DI_PIN      GPIO_NUM_38
 #define AUDIO_CODEC_I2S_SCLK_PIN    GPIO_NUM_40
 #define AUDIO_CODEC_I2S_LRCK_PIN    GPIO_NUM_41
-#define AUDIO_CODEC_NS4150_PIN    GPIO_NUM_21
+#define AUDIO_CODEC_NS4150_PIN      GPIO_NUM_21
 
 #elif defined(AUDIO_CODEC_ES7210_RX_ES8311_TX)
 // es8311-TX + es7210-RX  引脚定义
@@ -40,6 +41,7 @@
 #define AUDIO_CODEC_I2S_LRCK_PIN    GPIO_NUM_19
 #define AUDIO_CODEC_NS4150_PIN      GPIO_NUM_46
 #endif
+
 
 
 // // 如果使用 Duplex I2S 模式，请注释下面一行
@@ -72,24 +74,21 @@
 
 
 
-// //Camera Config
-// #define CAMERA_PIN_D0 GPIO_NUM_11
-// #define CAMERA_PIN_D1 GPIO_NUM_9
-// #define CAMERA_PIN_D2 GPIO_NUM_8
-// #define CAMERA_PIN_D3 GPIO_NUM_10
-// #define CAMERA_PIN_D4 GPIO_NUM_12
-// #define CAMERA_PIN_D5 GPIO_NUM_18
-// #define CAMERA_PIN_D6 GPIO_NUM_17
-// #define CAMERA_PIN_D7 GPIO_NUM_16
-// #define CAMERA_PIN_XCLK GPIO_NUM_15
-// #define CAMERA_PIN_PCLK GPIO_NUM_13
-// #define CAMERA_PIN_VSYNC GPIO_NUM_6
-// #define CAMERA_PIN_HREF GPIO_NUM_7
-// #define CAMERA_PIN_SIOC GPIO_NUM_5
-// #define CAMERA_PIN_SIOD GPIO_NUM_4
-// #define CAMERA_PIN_PWDN GPIO_NUM_NC
-// #define CAMERA_PIN_RESET GPIO_NUM_NC
-// #define XCLK_FREQ_HZ 20000000
+// sd卡 引脚定义
+// 采用 sd模式，(SD Mode)，否则注释下面一行
+#define SD_CARD_SD_MODE
+
+#ifdef SD_CARD_SD_MODE
+// SD Mode
+#define SD_CARD_PIN_CMD     GPIO_NUM_3
+#define SD_CARD_PIN_CLK     GPIO_NUM_4
+#define SD_CARD_PIN_D0      GPIO_NUM_5
+
+#else
+#endif
+
+
+
 // //Camera Config
 #define CAMERA_PIN_D0 GPIO_NUM_11  // Y2 (Pin 20)
 #define CAMERA_PIN_D1 GPIO_NUM_9   // Y3 (Pin 22) 
@@ -117,12 +116,6 @@
 
 #ifdef LCD_TYPE_ST7789_SPI_240X320_my
 // ST7789液晶屏 240*320 引脚定义
-// #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_18
-// #define DISPLAY_MOSI_PIN      GPIO_NUM_10
-// #define DISPLAY_CLK_PIN       GPIO_NUM_11
-// #define DISPLAY_DC_PIN        GPIO_NUM_9
-// #define DISPLAY_RST_PIN       GPIO_NUM_3
-// #define DISPLAY_CS_PIN        GPIO_NUM_8
 
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
 #define DISPLAY_MOSI_PIN      GPIO_NUM_48
@@ -141,6 +134,16 @@
 #define DISPLAY_HEIGHT      64
 #define DISPLAY_MIRROR_X    true
 #define DISPLAY_MIRROR_Y    true
+
+#else
+// ST7789液晶屏 240*320 引脚定义 ==== es8311
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_18
+#define DISPLAY_MOSI_PIN      GPIO_NUM_10
+#define DISPLAY_CLK_PIN       GPIO_NUM_11
+#define DISPLAY_DC_PIN        GPIO_NUM_9
+#define DISPLAY_RST_PIN       GPIO_NUM_3
+#define DISPLAY_CS_PIN        GPIO_NUM_8
+
 #endif
 
 
