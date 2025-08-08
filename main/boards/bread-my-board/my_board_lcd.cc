@@ -60,7 +60,7 @@
 //#define I2C_MASTER_NUM              0
 //#define I2C_MASTER_FREQ_HZ          100000  // 200kHz
 #define I2C_TIMEOUT_MS              1000
-#define SD_CARD_MOUNT_POINT         "sd_card"   // 挂载点
+#define SD_CARD_MOUNT_POINT         "/sdcard"   // 挂载点
 
 #define TAG "my_board_lcd"
 
@@ -97,6 +97,7 @@ private:
     void InitializeSDCard(){
         esp_err_t ret;
         sdmmc_card_t* card;
+        const char mount_point[] = SD_CARD_MOUNT_POINT
 
         // 1. fat文件系统 挂载配置
         esp_vfs_fat_sdmmc_mount_config_t mount_config = {
@@ -156,9 +157,9 @@ private:
 #endif
 
 #ifdef CONFIG_SOC_SDMMC_USE_GPIO_MATRIX     // 配置GPIO引脚（如果支持GPIO矩阵）
-        slot_config.clk = CONFIG_EXAMPLE_PIN_CLK;
-        slot_config.cmd = CONFIG_EXAMPLE_PIN_CMD;
-        slot_config.d0 = CONFIG_EXAMPLE_PIN_D0;
+        slot_config.clk = SD_CARD_PIN_CLK;
+        slot_config.cmd = SD_CARD_PIN_CMD;
+        slot_config.d0 = SD_CARD_PIN_D0;
 #ifdef CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_4
         slot_config.d1 = CONFIG_EXAMPLE_PIN_D1;
         slot_config.d2 = CONFIG_EXAMPLE_PIN_D2;
@@ -169,7 +170,7 @@ private:
 
         // 5. 挂载文件系统
         ESP_LOGI(TAG, "Mounting filesystem");
-        ret = esp_vfs_fat_sdmmc_mount(SD_CARD_MOUNT_POINT, &host, &slot_config, &mount_config, &card);    //mount_point
+        ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);    //mount_point
 
 
         // 6. 错误处理
