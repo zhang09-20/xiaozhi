@@ -14,7 +14,6 @@
 #include "led/single_led.h"
 
 #include <wifi_station.h>
-#include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_io.h>
@@ -30,9 +29,17 @@
 #include <string.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
+
+#include <inttypes.h> // for PRIu64
+#include <esp_log.h>
+
+extern "C" {
+    #include "driver/sdmmc_host.h"
+}
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
-#include "driver/sdmmc_host.h"
+//#include "driver/sdmmc_host.h"
+
 //#include "sd_test_io.h"
 #if SOC_SDMMC_IO_POWER_EXTERNAL
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
@@ -94,6 +101,22 @@ private:
 
 
     // ********************************************************
+    
+    void print_sdcard_info(const sdmmc_card_t* card) {
+        if (!card) {
+            ESP_LOGE("SD", "Card pointer is NULL");
+            return;
+        }
+
+        uint64_t capacity_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
+        ESP_LOGI("SD", "Name: %s", card->cid.name);
+        ESP_LOGI("SD", "Type: %s", (card->ocr & SD_OCR_SDHC_CAP) ? "SDHC" : "SDSC");
+        ESP_LOGI("SD", "Capacity: %" PRIu64 " bytes (%.2f MB)", capacity_bytes, capacity_bytes / (1024.0 * 1024.0));
+        ESP_LOGI("SD", "CSD Version: %d, Sector size: %d, Capacity: %" PRIu64, 
+                card->csd.csd_ver, card->csd.sector_size, (uint64_t)card->csd.capacity);
+        ESP_LOGI("SD", "Bus Width: %d-bit", (card->host->flags & SDMMC_HOST_FLAG_4BIT) ? 4 : 1);
+    }
+
     void InitializeSDCard(){
         esp_err_t ret;
         sdmmc_card_t* card;
@@ -212,7 +235,8 @@ private:
     
         // 8、打印卡属性
         // Card has been initialized, print its properties
-        sdmmc_card_print_info(stdout, card);
+        //sdmmc_card_print_info(stdout, card);
+        print_sdcard_info(card);
     }
 
 
