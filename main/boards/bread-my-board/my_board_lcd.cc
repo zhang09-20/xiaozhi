@@ -241,12 +241,11 @@ private:
 
 
 
-    //bool PlayLocalMusic(const std::string& file_name) 
     bool PlayLocalMusic(){
-        ESP_LOGI(TAG, "Playing local music");
+        ESP_LOGI(TAG, "Playing local P3 music");
         
         // 构建完整的文件路径
-        std::string file_path = "/sdcard/RECORD.WAV";
+        std::string file_path = "/sdcard/music.p3";
         
         // 检查文件是否存在
         struct stat st;
@@ -267,131 +266,29 @@ private:
         long file_size = ftell(file);
         fseek(file, 0, SEEK_SET);
         
-        ESP_LOGI(TAG, "File size: %ld bytes", file_size);
+        ESP_LOGI(TAG, "P3 file size: %ld bytes", file_size);
         
-        std::string file_name = "RECORD.WAV";
-
-        // 检查文件扩展名，处理WAV文件头
-        size_t header_skip = 0;
-        int sample_rate = 16000;  // 默认采样率
-        int channels = 1;          // 默认单声道
-        int bits_per_sample = 16;  // 默认16位
-        std::string lower_filename = file_name;
-        std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
+        // 读取整个P3文件到内存
+        std::vector<char> p3_data(file_size);
+        size_t bytes_read = fread(p3_data.data(), 1, file_size, file);
+        fclose(file);
         
-        if (lower_filename.find(".wav") != std::string::npos) {
-            // WAV文件，解析文件头获取音频参数
-            ESP_LOGI(TAG, "Detected WAV file, parsing header...");
-            
-            // 读取WAV文件头
-            char wav_header[44];
-            if (fread(wav_header, 1, 44, file) == 44) {
-                if (strncmp(wav_header, "RIFF", 4) == 0 && strncmp(wav_header + 8, "WAVE", 4) == 0) {
-                    ESP_LOGI(TAG, "Valid WAV file header detected");
-                    
-                    // 解析音频格式参数
-                    // 采样率在字节24-27
-                    sample_rate = *(uint32_t*)(wav_header + 24);
-                    // 声道数在字节22-23
-                    channels = *(uint16_t*)(wav_header + 22);
-                    // 位深度在字节34-35
-                    bits_per_sample = *(uint16_t*)(wav_header + 34);
-                    
-                    ESP_LOGI(TAG, "WAV format: %d Hz, %d channels, %d bits", 
-                             sample_rate, channels, bits_per_sample);
-                    
-                    // 检查是否支持
-                    if (sample_rate != 16000) {
-                        ESP_LOGW(TAG, "Warning: WAV sample rate %d Hz, expected 16000 Hz", sample_rate);
-                    }
-                    if (channels != 1) {
-                        ESP_LOGW(TAG, "Warning: WAV has %d channels, expected 1", channels);
-                    }
-                    if (bits_per_sample != 16) {
-                        ESP_LOGW(TAG, "Warning: WAV has %d bits per sample, expected 16", bits_per_sample);
-                    }
-                    
-                    header_skip = 44;
-                } else {
-                    ESP_LOGW(TAG, "Invalid WAV file header, treating as raw audio");
-                    header_skip = 0;
-                    fseek(file, 0, SEEK_SET);
-                }
-            } else {
-                ESP_LOGW(TAG, "Failed to read WAV header, treating as raw audio");
-                header_skip = 0;
-                fseek(file, 0, SEEK_SET);
-            }
-        } else if (lower_filename.find(".p3") != std::string::npos) {
-            ESP_LOGI(TAG, "Detected P3 file");
-        } else {
-            ESP_LOGI(TAG, "Treating as raw audio file");
+        if (bytes_read != file_size) {
+            ESP_LOGE(TAG, "Failed to read complete file: %zu/%ld bytes", bytes_read, file_size);
+            return false;
         }
         
-        // 如果跳过了头部，重新定位文件指针
-        if (header_skip > 0) {
-            fseek(file, header_skip, SEEK_SET);
-            ESP_LOGI(TAG, "Skipped %zu bytes header, audio data starts at offset %zu", header_skip, header_skip);
-        }
+        ESP_LOGI(TAG, "Successfully loaded P3 file: %zu bytes", bytes_read);
         
-        // 计算正确的音频帧大小
-        // 对于16kHz单声道16位音频，60ms帧 = 16000 * 0.06 * 2 = 1920字节
-        size_t frame_size = (sample_rate * 60 / 1000) * channels * (bits_per_sample / 8);
-        ESP_LOGI(TAG, "Audio frame size: %zu bytes (for %dms at %d Hz)", frame_size, 60, sample_rate);
-        
-        // 直接推送到播放队列，跳过Opus解码
-        // 因为这是原始PCM数据，不需要解码
+        // 获取音频服务实例
         auto& app = Application::GetInstance();
         auto& audio_service = app.GetAudioService();
         
-        // 启用音频输出
-        auto codec = Board::GetInstance().GetAudioCodec();
-        if (codec) {
-            codec->EnableOutput(true);
-            ESP_LOGI(TAG, "Enabled audio output");
-        }
+        // 使用PlaySound函数播放P3数据
+        std::string_view sound_data(p3_data.data(), p3_data.size());
+        audio_service.PlaySound(sound_data);
         
-        // 读取文件内容并直接输出
-        std::vector<uint8_t> buffer(frame_size);
-        size_t total_bytes_read = 0;
-        int packet_count = 0;
-        
-        while (true) {
-            size_t bytes_read = fread(buffer.data(), 1, frame_size, file);
-            if (bytes_read == 0) {
-                break;  // 文件结束
-            }
-            
-            // 如果读取的数据不足一个完整帧，用零填充
-            if (bytes_read < frame_size) {
-                ESP_LOGI(TAG, "Last frame: %zu bytes (partial)", bytes_read);
-                std::fill(buffer.begin() + bytes_read, buffer.end(), 0);
-            }
-            
-            // 将字节数据转换为PCM样本
-            std::vector<int16_t> pcm_samples(frame_size / 2);  // 16位 = 2字节
-            memcpy(pcm_samples.data(), buffer.data(), frame_size);
-            
-            // 直接输出到音频编解码器
-            if (codec) {
-                codec->OutputData(pcm_samples);
-            }
-            
-            total_bytes_read += bytes_read;
-            packet_count++;
-            
-            if (packet_count % 10 == 0) {  // 每10个包打印一次进度
-                ESP_LOGI(TAG, "Progress: %d packets, %zu bytes", packet_count, total_bytes_read);
-            }
-            
-            // 添加适当延迟，控制播放速度
-            // 60ms音频帧对应60ms延迟
-            vTaskDelay(pdMS_TO_TICKS(60));
-        }
-        
-        fclose(file);
-        ESP_LOGI(TAG, "Finished playing: %s (total: %d packets, %zu bytes)", 
-                 file_path.c_str(), packet_count, total_bytes_read);
+        ESP_LOGI(TAG, "Started playing P3 file using PlaySound");
         return true;
     }
 
