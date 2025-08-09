@@ -268,35 +268,6 @@ private:
         
         ESP_LOGI(TAG, "P3 file size: %ld bytes", file_size);
         
-        // 验证文件大小是否合理
-        if (file_size < 8) {  // 至少需要一个P3帧（4字节头部+数据）
-            ESP_LOGE(TAG, "P3 file too small: %ld bytes", file_size);
-            fclose(file);
-            return false;
-        }
-        
-        // 读取并验证P3文件头部
-        uint8_t first_header[4];
-        if (fread(first_header, 1, 4, file) != 4) {
-            ESP_LOGE(TAG, "Failed to read P3 header");
-            fclose(file);
-            return false;
-        }
-        
-        uint16_t first_payload_size = (first_header[2] << 8) | first_header[3];
-        ESP_LOGI(TAG, "First P3 frame: type=%u, reserved=%u, size=%u", 
-                 first_header[0], first_header[1], first_payload_size);
-        
-        // 验证第一帧的payload大小是否合理
-        if (first_payload_size == 0 || first_payload_size > 1024) {
-            ESP_LOGE(TAG, "Invalid P3 frame size: %u", first_payload_size);
-            fclose(file);
-            return false;
-        }
-        
-        // 重新定位到文件开头
-        fseek(file, 0, SEEK_SET);
-        
         // 读取整个P3文件到内存
         std::vector<char> p3_data(file_size);
         size_t bytes_read = fread(p3_data.data(), 1, file_size, file);
@@ -309,10 +280,42 @@ private:
         
         ESP_LOGI(TAG, "Successfully loaded P3 file: %zu bytes", bytes_read);
         
-        // 打印前几个字节用于调试
-        ESP_LOGI(TAG, "P3 file header bytes: %02X %02X %02X %02X %02X %02X %02X %02X",
-                 (uint8_t)p3_data[0], (uint8_t)p3_data[1], (uint8_t)p3_data[2], (uint8_t)p3_data[3],
-                 (uint8_t)p3_data[4], (uint8_t)p3_data[5], (uint8_t)p3_data[6], (uint8_t)p3_data[7]);
+        // 检查是否是错误的Ogg格式
+        if (p3_data.size() >= 8) {
+            uint32_t ogg_magic = *(uint32_t*)(p3_data.data() + 4);  // 跳过P3头部检查
+            if (ogg_magic == 0x5367674F) {  // "OggS"
+                ESP_LOGE(TAG, "Error: P3 file contains Ogg format, not raw OPUS data");
+                ESP_LOGE(TAG, "Please regenerate P3 file with correct format");
+                return false;
+            }
+        }
+        
+        // 检查P3格式并修复如果需要
+        bool needs_fix = false;
+        size_t pos = 0;
+        int frame_count = 0;
+        
+        // 验证P3格式
+        while (pos + 4 < p3_data.size() && frame_count < 10) {  // 检查前10帧
+            uint16_t payload_size = ((uint8_t)p3_data[pos + 2] << 8) | (uint8_t)p3_data[pos + 3];
+            
+            if (payload_size == 0 || payload_size > 1024 || pos + 4 + payload_size > p3_data.size()) {
+                ESP_LOGW(TAG, "Invalid P3 frame at pos %zu, size=%u", pos, payload_size);
+                needs_fix = true;
+                break;
+            }
+            
+            pos += 4 + payload_size;
+            frame_count++;
+        }
+        
+        if (needs_fix || frame_count == 0) {
+            ESP_LOGE(TAG, "P3 file format is corrupted or invalid");
+            ESP_LOGE(TAG, "Please regenerate P3 file using: python create_test_p3.py music.p3");
+            return false;
+        }
+        
+        ESP_LOGI(TAG, "P3 format validation passed, %d frames checked", frame_count);
         
         // 获取音频服务实例
         auto& app = Application::GetInstance();
