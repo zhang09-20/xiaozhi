@@ -268,6 +268,35 @@ private:
         
         ESP_LOGI(TAG, "P3 file size: %ld bytes", file_size);
         
+        // 验证文件大小是否合理
+        if (file_size < 8) {  // 至少需要一个P3帧（4字节头部+数据）
+            ESP_LOGE(TAG, "P3 file too small: %ld bytes", file_size);
+            fclose(file);
+            return false;
+        }
+        
+        // 读取并验证P3文件头部
+        uint8_t first_header[4];
+        if (fread(first_header, 1, 4, file) != 4) {
+            ESP_LOGE(TAG, "Failed to read P3 header");
+            fclose(file);
+            return false;
+        }
+        
+        uint16_t first_payload_size = (first_header[2] << 8) | first_header[3];
+        ESP_LOGI(TAG, "First P3 frame: type=%u, reserved=%u, size=%u", 
+                 first_header[0], first_header[1], first_payload_size);
+        
+        // 验证第一帧的payload大小是否合理
+        if (first_payload_size == 0 || first_payload_size > 1024) {
+            ESP_LOGE(TAG, "Invalid P3 frame size: %u", first_payload_size);
+            fclose(file);
+            return false;
+        }
+        
+        // 重新定位到文件开头
+        fseek(file, 0, SEEK_SET);
+        
         // 读取整个P3文件到内存
         std::vector<char> p3_data(file_size);
         size_t bytes_read = fread(p3_data.data(), 1, file_size, file);
@@ -280,9 +309,21 @@ private:
         
         ESP_LOGI(TAG, "Successfully loaded P3 file: %zu bytes", bytes_read);
         
+        // 打印前几个字节用于调试
+        ESP_LOGI(TAG, "P3 file header bytes: %02X %02X %02X %02X %02X %02X %02X %02X",
+                 (uint8_t)p3_data[0], (uint8_t)p3_data[1], (uint8_t)p3_data[2], (uint8_t)p3_data[3],
+                 (uint8_t)p3_data[4], (uint8_t)p3_data[5], (uint8_t)p3_data[6], (uint8_t)p3_data[7]);
+        
         // 获取音频服务实例
         auto& app = Application::GetInstance();
         auto& audio_service = app.GetAudioService();
+        
+        // 确保音频服务处于空闲状态
+        if (!audio_service.IsIdle()) {
+            ESP_LOGW(TAG, "Audio service is not idle, resetting decoder");
+            audio_service.ResetDecoder();
+            vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
+        }
         
         // 使用PlaySound函数播放P3数据
         std::string_view sound_data(p3_data.data(), p3_data.size());
