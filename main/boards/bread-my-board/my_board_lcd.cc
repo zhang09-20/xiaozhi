@@ -299,7 +299,8 @@ private:
         }
         
         // 通知云端设备正在播放本地音乐，避免云端大模型一直说话
-        app.SendMcpMessage("{\"type\":\"local_music_start\",\"message\":\"Playing local music\"}");
+        app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_start\",\"message\":\"Playing local music\"}}");
+        app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"local_music_active\"}}");
         ESP_LOGI(TAG, "Notified cloud about local music playback");
         
         // 设置设备状态为speaking，这样OnIncomingAudio回调才会处理音频
@@ -322,7 +323,8 @@ private:
             }
             
             // 播放完成，通知云端
-            app.SendMcpMessage("{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}");
+            app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}}");
+            app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"ready_for_commands\"}}");
             ESP_LOGI(TAG, "Auto-notified cloud about local music end");
             
             // 恢复设备状态
@@ -343,7 +345,8 @@ private:
         auto& audio_service = app.GetAudioService();
         
         // 通知云端本地音乐播放结束
-        app.SendMcpMessage("{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}");
+        app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}}");
+        app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"ready_for_commands\"}}");
         ESP_LOGI(TAG, "Notified cloud about local music end");
         
         // 清空解码队列
