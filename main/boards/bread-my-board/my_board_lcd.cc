@@ -542,7 +542,7 @@ private:
         ESP_LOGI(TAG, "Finished playing designated music: %s", file_name.c_str());
         return true;
     }
-    
+
 
     bool test_print(){
         ESP_LOGI(TAG,"************** test_print ******************");
@@ -574,8 +574,7 @@ private:
 
         // 添加停止播放音乐工具
         mcp_server.AddTool("self.audio.stop_music",
-            "停止播放",
-            //"Use this tool when the user wants to stop the currently playing music.",
+            "结束本地音乐",
             PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
                 return StopMusic();
@@ -997,22 +996,6 @@ public:
 
 
 // ****************** 此处决定调用哪一个音频编、解码器 ***********************************
-
-    //获取音频编解、码器 1，无音频编码器
-//     virtual AudioCodec* GetAudioCodec() override {
-// #ifdef AUDIO_I2S_METHOD_SIMPLEX
-//         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-//             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
-//             AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
-// #else
-//         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-//             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
-// #endif
-//         return &audio_codec;
-//     }
-
-
-
 
     static uint8_t test_flag;
     //获取音频编、解码器 2，es8311
