@@ -269,47 +269,40 @@ void AudioService::AudioInputTask() {
                     data = std::move(mono_data);
                     //================================
                 } else if (codec_->input_channels() == 3) {
-                    // 智能麦克风选择：检测异常数据，取平均值或选择正常通道
+                    // 简单麦克风检测：前20个样本平均值小于20判失败
                     auto mono_data = std::vector<int16_t>(data.size() / 3);
                     
-                    // 计算两个麦克风的能量和异常检测
-                    int64_t mic1_energy = 0, mic2_energy = 0;
-                    int mic1_abnormal_count = 0, mic2_abnormal_count = 0;
-                    const int16_t threshold = 32000; // 异常阈值
+                    // 检测前20个样本的平均值
+                    int64_t mic1_sum = 0, mic2_sum = 0;
+                    const int check_samples = std::min(20, (int)mono_data.size());
                     
-                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 3) {
-                        int16_t mic1_val = data[j];
-                        int16_t mic2_val = data[j + 1];
-                        
-                        // 计算能量
-                        mic1_energy += abs(mic1_val);
-                        mic2_energy += abs(mic2_val);
-                        
-                        // 检测异常（过大的值）
-                        if (abs(mic1_val) > threshold) mic1_abnormal_count++;
-                        if (abs(mic2_val) > threshold) mic2_abnormal_count++;
+                    for (int i = 0; i < check_samples; ++i) {
+                        mic1_sum += abs(data[i * 3]);     // 通道0
+                        mic2_sum += abs(data[i * 3 + 1]); // 通道1
                     }
                     
-                    // 判断哪个麦克风异常
-                    bool mic1_abnormal = mic1_abnormal_count > mono_data.size() * 0.1; // 10%以上异常
-                    bool mic2_abnormal = mic2_abnormal_count > mono_data.size() * 0.1;
+                    int mic1_avg = mic1_sum / check_samples;
+                    int mic2_avg = mic2_sum / check_samples;
                     
-                    // 智能选择策略
+                    bool mic1_ok = mic1_avg >= 20;
+                    bool mic2_ok = mic2_avg >= 20;
+                    
+                    // 处理所有样本
                     for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 3) {
                         int16_t mic1_val = data[j];
                         int16_t mic2_val = data[j + 1];
                         
-                        if (mic1_abnormal && !mic2_abnormal) {
-                            // MIC1异常，MIC2正常，使用MIC2
-                            mono_data[i] = mic2_val;
-                        } else if (!mic1_abnormal && mic2_abnormal) {
-                            // MIC1正常，MIC2异常，使用MIC1
+                        if (mic1_ok && mic2_ok) {
+                            // 都成功，取平均值
+                            mono_data[i] = (mic1_val + mic2_val) / 2;
+                        } else if (mic1_ok && !mic2_ok) {
+                            // MIC1成功，MIC2失败，用MIC1
                             mono_data[i] = mic1_val;
-                        } else if (mic1_abnormal && mic2_abnormal) {
-                            // 都异常，使用能量较小的
-                            mono_data[i] = (mic1_energy < mic2_energy) ? mic1_val : mic2_val;
+                        } else if (!mic1_ok && mic2_ok) {
+                            // MIC1失败，MIC2成功，用MIC2
+                            mono_data[i] = mic2_val;
                         } else {
-                            // 都正常，取平均值
+                            // 都失败，取平均值
                             mono_data[i] = (mic1_val + mic2_val) / 2;
                         }
                     }
