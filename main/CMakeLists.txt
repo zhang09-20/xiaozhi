@@ -33,12 +33,11 @@ file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
-
 # 根据 BOARD_TYPE 配置添加对应的板级文件
-if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
-    set(BOARD_TYPE "bread-compact-wifi")
-elseif(CONFIG_BOARD_TYPE_MY_BOARD_WIFI)
+if(CONFIG_BOARD_TYPE_MY_BOARD_WIFI)
     set(BOARD_TYPE "bread-my-board")
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+    set(BOARD_TYPE "bread-compact-wifi")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
@@ -337,5 +336,26 @@ spiffs_create_partition_assets(
     ${SPIFFS_DIR}
     FLASH_IN_PROJECT
     MMAP_FILE_SUPPORT_FORMAT ".aaf"
+)
+endif()
+
+if(CONFIG_BOARD_TYPE_ECHOEAR)
+
+idf_build_get_property(build_components BUILD_COMPONENTS)
+foreach(COMPONENT ${build_components})
+    if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
+        set(EMOTE_GFX_COMPONENT ${COMPONENT})
+        idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
+        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
+        break()
+    endif()
+endforeach()
+
+spiffs_create_partition_assets(
+    assets_A
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
+    IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
 endif()

@@ -28,7 +28,6 @@ McpServer::~McpServer() {
     tools_.clear();
 }
 
-// 添加常用工具
 void McpServer::AddCommonTools() {
     // To speed up the response time, we add the common tools to the beginning of
     // the tools list to utilize the prompt cache.
@@ -36,7 +35,6 @@ void McpServer::AddCommonTools() {
     auto original_tools = std::move(tools_);
     auto& board = Board::GetInstance();
 
-    // 获取设备状态
     AddTool("self.get_device_status",
         "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\n"
         "Use this tool for: \n"
@@ -47,7 +45,6 @@ void McpServer::AddCommonTools() {
             return board.GetDeviceStatusJson();
         });
 
-    // 设置音量
     AddTool("self.audio_speaker.set_volume", 
         "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.",
         PropertyList({
@@ -59,7 +56,6 @@ void McpServer::AddCommonTools() {
             return true;
         });
     
-    // 设置屏幕亮度
     auto backlight = board.GetBacklight();
     if (backlight) {
         AddTool("self.screen.set_brightness",
@@ -74,7 +70,6 @@ void McpServer::AddCommonTools() {
             });
     }
 
-    // 设置屏幕主题
     auto display = board.GetDisplay();
     if (display && !display->GetTheme().empty()) {
         AddTool("self.screen.set_theme",
@@ -88,7 +83,6 @@ void McpServer::AddCommonTools() {
             });
     }
 
-    // 拍照
     auto camera = board.GetCamera();
     if (camera) {
         AddTool("self.camera.take_photo",
@@ -109,14 +103,10 @@ void McpServer::AddCommonTools() {
             });
     }
 
-    // 播放音乐
-
-    // 将常用工具添加到 tools_
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
 }
 
-// 添加工具
 void McpServer::AddTool(McpTool* tool) {
     // Prevent adding duplicate tools
     if (std::find_if(tools_.begin(), tools_.end(), [tool](const McpTool* t) { return t->name() == tool->name(); }) != tools_.end()) {
@@ -128,12 +118,10 @@ void McpServer::AddTool(McpTool* tool) {
     tools_.push_back(tool);
 }
 
-// 添加工具
 void McpServer::AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback) {
     AddTool(new McpTool(name, description, properties, callback));
 }
 
-// 解析消息
 void McpServer::ParseMessage(const std::string& message) {
     cJSON* json = cJSON_Parse(message.c_str());
     if (json == nullptr) {
@@ -144,7 +132,6 @@ void McpServer::ParseMessage(const std::string& message) {
     cJSON_Delete(json);
 }
 
-// 解析能力
 void McpServer::ParseCapabilities(const cJSON* capabilities) {
     auto vision = cJSON_GetObjectItem(capabilities, "vision");
     if (cJSON_IsObject(vision)) {
@@ -164,7 +151,6 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
     }
 }
 
-// 解析消息
 void McpServer::ParseMessage(const cJSON* json) {
     // Check JSONRPC version
     auto version = cJSON_GetObjectItem(json, "jsonrpc");
@@ -251,7 +237,6 @@ void McpServer::ParseMessage(const cJSON* json) {
     }
 }
 
-// 回复结果
 void McpServer::ReplyResult(int id, const std::string& result) {
     std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
     payload += std::to_string(id) + ",\"result\":";
@@ -260,7 +245,6 @@ void McpServer::ReplyResult(int id, const std::string& result) {
     Application::GetInstance().SendMcpMessage(payload);
 }
 
-// 回复错误
 void McpServer::ReplyError(int id, const std::string& message) {
     std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
     payload += std::to_string(id);
@@ -270,7 +254,6 @@ void McpServer::ReplyError(int id, const std::string& message) {
     Application::GetInstance().SendMcpMessage(payload);
 }
 
-// 获取工具列表
 void McpServer::GetToolsList(int id, const std::string& cursor) {
     const int max_payload_size = 8000;
     std::string json = "{\"tools\":[";
@@ -322,7 +305,6 @@ void McpServer::GetToolsList(int id, const std::string& cursor) {
     ReplyResult(id, json);
 }
 
-// 调用工具
 void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, int stack_size) {
     auto tool_iter = std::find_if(tools_.begin(), tools_.end(), 
                                  [&tool_name](const McpTool* tool) { 

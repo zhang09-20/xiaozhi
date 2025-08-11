@@ -280,43 +280,6 @@ private:
         
         ESP_LOGI(TAG, "Successfully loaded P3 file: %zu bytes", bytes_read);
         
-        // 检查是否是错误的Ogg格式
-        if (p3_data.size() >= 8) {
-            uint32_t ogg_magic = *(uint32_t*)(p3_data.data() + 4);  // 跳过P3头部检查
-            if (ogg_magic == 0x5367674F) {  // "OggS"
-                ESP_LOGE(TAG, "Error: P3 file contains Ogg format, not raw OPUS data");
-                ESP_LOGE(TAG, "Please regenerate P3 file with correct format");
-                return false;
-            }
-        }
-        
-        // 检查P3格式并修复如果需要
-        bool needs_fix = false;
-        size_t pos = 0;
-        int frame_count = 0;
-        
-        // 验证P3格式
-        while (pos + 4 < p3_data.size() && frame_count < 10) {  // 检查前10帧
-            uint16_t payload_size = ((uint8_t)p3_data[pos + 2] << 8) | (uint8_t)p3_data[pos + 3];
-            
-            if (payload_size == 0 || payload_size > 1024 || pos + 4 + payload_size > p3_data.size()) {
-                ESP_LOGW(TAG, "Invalid P3 frame at pos %zu, size=%u", pos, payload_size);
-                needs_fix = true;
-                break;
-            }
-            
-            pos += 4 + payload_size;
-            frame_count++;
-        }
-        
-        if (needs_fix || frame_count == 0) {
-            ESP_LOGE(TAG, "P3 file format is corrupted or invalid");
-            ESP_LOGE(TAG, "Please regenerate P3 file using: python create_test_p3.py music.p3");
-            return false;
-        }
-        
-        ESP_LOGI(TAG, "P3 format validation passed, %d frames checked", frame_count);
-        
         // 获取音频服务实例
         auto& app = Application::GetInstance();
         auto& audio_service = app.GetAudioService();
@@ -328,11 +291,47 @@ private:
             vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
         }
         
+        // 确保音频输出是启用的
+        auto codec = Board::GetInstance().GetAudioCodec();
+        if (codec) {
+            codec->EnableOutput(true);
+            ESP_LOGI(TAG, "Enabled audio output");
+        }
+        
+        // 通知云端设备正在播放本地音乐，避免云端大模型一直说话
+        app.SendMcpMessage("{\"type\":\"local_music_start\",\"message\":\"Playing local music\"}");
+        ESP_LOGI(TAG, "Notified cloud about local music playback");
+        
+        // 设置设备状态为speaking，这样OnIncomingAudio回调才会处理音频
+        app.SetDeviceState(kDeviceStateSpeaking);
+        
         // 使用PlaySound函数播放P3数据
         std::string_view sound_data(p3_data.data(), p3_data.size());
         audio_service.PlaySound(sound_data);
         
         ESP_LOGI(TAG, "Started playing P3 file using PlaySound");
+        
+        // 创建监控任务，检测播放完成
+        xTaskCreate([](void* arg) {
+            auto& app = Application::GetInstance();
+            auto& audio_service = app.GetAudioService();
+            
+            // 等待播放完成（音频服务变为空闲状态）
+            while (!audio_service.IsIdle()) {
+                vTaskDelay(pdMS_TO_TICKS(100));  // 每100ms检查一次
+            }
+            
+            // 播放完成，通知云端
+            app.SendMcpMessage("{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}");
+            ESP_LOGI(TAG, "Auto-notified cloud about local music end");
+            
+            // 恢复设备状态
+            app.SetDeviceState(kDeviceStateIdle);
+            ESP_LOGI(TAG, "Auto-restored device state to idle");
+            
+            vTaskDelete(NULL);
+        }, "music_monitor", 2048, nullptr, 5, nullptr);
+        
         return true;
     }
 
@@ -342,6 +341,10 @@ private:
         // 获取音频服务实例
         auto& app = Application::GetInstance();
         auto& audio_service = app.GetAudioService();
+        
+        // 通知云端本地音乐播放结束
+        app.SendMcpMessage("{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}");
+        ESP_LOGI(TAG, "Notified cloud about local music end");
         
         // 清空解码队列
         audio_service.ResetDecoder();
@@ -353,6 +356,11 @@ private:
             codec->EnableOutput(false);
             ESP_LOGI(TAG, "Disabled audio output");
         }
+        
+        // 恢复设备状态为正常
+        app.SetDeviceState(kDeviceStateIdle);
+        ESP_LOGI(TAG, "Restored device state to idle");
+        
         return true;
     }
 
@@ -563,8 +571,8 @@ private:
 
         // 添加停止播放音乐工具
         mcp_server.AddTool("self.audio.stop_music",
-            "停止当前正在播放的音乐。\n"
-            "Use this tool when the user wants to stop the currently playing music.",
+            "停止播放",
+            //"Use this tool when the user wants to stop the currently playing music.",
             PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
                 return StopMusic();
