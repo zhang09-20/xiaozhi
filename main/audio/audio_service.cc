@@ -181,27 +181,21 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
             //================================
         } else if (codec_->input_channels() == 3) {
             // 3通道处理：通道0+1为麦克风，通道2为回声参考
-            auto mic1_channel = std::vector<int16_t>(data.size() / 3);  // 通道0 (MIC1)
-            auto mic2_channel = std::vector<int16_t>(data.size() / 3);  // 通道1 (MIC2)
-            auto reference_channel = std::vector<int16_t>(data.size() / 3); // 通道2 (MIC3) 回声参考
+            auto mic_channel = std::vector<int16_t>(data.size() / 3 * 2);  // 前两个通道合并
+            auto reference_channel = std::vector<int16_t>(data.size() / 3); // 第三个通道
             for (size_t i = 0, j = 0; i < data.size() / 3; ++i, j += 3) {
-                mic1_channel[i] = data[j];     // 通道0 (MIC1)
-                mic2_channel[i] = data[j + 1]; // 通道1 (MIC2)
+                mic_channel[i * 2] = data[j];     // 通道0 (MIC1)
+                mic_channel[i * 2 + 1] = data[j + 1]; // 通道1 (MIC2)
                 reference_channel[i] = data[j + 2];   // 通道2 (MIC3) 回声参考
             }
-            // 分别重采样每个通道
-            auto resampled_mic1 = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic1_channel.size()));
-            auto resampled_mic2 = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic2_channel.size()));
+            auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
             auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
-            input_resampler_.Process(mic1_channel.data(), mic1_channel.size(), resampled_mic1.data());
-            input_resampler_.Process(mic2_channel.data(), mic2_channel.size(), resampled_mic2.data());
+            input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
             reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
-            // 合并为立体声 + 回声参考
-            data.resize(resampled_mic1.size() + resampled_mic2.size() + resampled_reference.size());
-            for (size_t i = 0, j = 0; i < resampled_mic1.size(); ++i, j += 3) {
-                data[j] = resampled_mic1[i];     // 左声道 (MIC1)
-                data[j + 1] = resampled_mic2[i]; // 右声道 (MIC2)
-                data[j + 2] = resampled_reference[i]; // 回声参考 (MIC3)
+            data.resize(resampled_mic.size() + resampled_reference.size());
+            for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
+                data[j] = resampled_mic[i];
+                data[j + 1] = resampled_reference[i];
             }
             //=================================
         } else {
