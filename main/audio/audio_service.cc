@@ -178,6 +178,36 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
                 data[j] = resampled_mic[i];
                 data[j + 1] = resampled_reference[i];
             }
+            //================================
+        } else if (codec_->input_channels() == 3) {
+            // 3通道处理：通道0+1为麦克风，通道2为回声参考
+            auto mic1_channel = std::vector<int16_t>(data.size() / 3);  // 通道0 (MIC1)
+            auto mic2_channel = std::vector<int16_t>(data.size() / 3);  // 通道1 (MIC2)
+            auto reference_channel = std::vector<int16_t>(data.size() / 3); // 通道2 (MIC3) 回声参考
+            for (size_t i = 0, j = 0; i < data.size() / 3; ++i, j += 3) {
+                mic1_channel[i] = data[j];     // 通道0 (MIC1)
+                mic2_channel[i] = data[j + 1]; // 通道1 (MIC2)
+                reference_channel[i] = data[j + 2];   // 通道2 (MIC3) 回声参考
+            }
+            // 分别重采样每个通道
+            auto resampled_mic1 = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic1_channel.size()));
+            auto resampled_mic2 = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic2_channel.size()));
+            auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
+            input_resampler_.Process(mic1_channel.data(), mic1_channel.size(), resampled_mic1.data());
+            input_resampler_.Process(mic2_channel.data(), mic2_channel.size(), resampled_mic2.data());
+            reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
+            data.resize(resampled_mic1.size() + resampled_mic2.size() + resampled_reference.size());
+            // 3通道输出应该是：立体声 + 回声参考
+            for (size_t i = 0, j = 0; i < resampled_mic1.size() / 2; ++i, j += 3) {
+                data[j] = resampled_mic1[i];     // mic1
+                data[j + 1] = resampled_mic2[i]; // mic2  
+                data[j + 2] = resampled_reference[i]; // 回声参考
+            }
+            // for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
+            //     data[j] = resampled_mic[i];
+            //     data[j + 1] = resampled_reference[i];
+            // }
+            // //=================================
         } else {
             auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
             input_resampler_.Process(data.data(), data.size(), resampled.data());
@@ -237,6 +267,55 @@ void AudioService::AudioInputTask() {
                         mono_data[i] = data[j];
                     }
                     data = std::move(mono_data);
+                    //================================
+                } else if (codec_->input_channels() == 3) {
+                    // 智能麦克风选择：检测异常数据，取平均值或选择正常通道
+                    auto mono_data = std::vector<int16_t>(data.size() / 3);
+                    
+                    // 计算两个麦克风的能量和异常检测
+                    int64_t mic1_energy = 0, mic2_energy = 0;
+                    int mic1_abnormal_count = 0, mic2_abnormal_count = 0;
+                    const int16_t threshold = 32000; // 异常阈值
+                    
+                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 3) {
+                        int16_t mic1_val = data[j];
+                        int16_t mic2_val = data[j + 1];
+                        
+                        // 计算能量
+                        mic1_energy += abs(mic1_val);
+                        mic2_energy += abs(mic2_val);
+                        
+                        // 检测异常（过大的值）
+                        if (abs(mic1_val) > threshold) mic1_abnormal_count++;
+                        if (abs(mic2_val) > threshold) mic2_abnormal_count++;
+                    }
+                    
+                    // 判断哪个麦克风异常
+                    bool mic1_abnormal = mic1_abnormal_count > mono_data.size() * 0.1; // 10%以上异常
+                    bool mic2_abnormal = mic2_abnormal_count > mono_data.size() * 0.1;
+                    
+                    // 智能选择策略
+                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 3) {
+                        int16_t mic1_val = data[j];
+                        int16_t mic2_val = data[j + 1];
+                        
+                        if (mic1_abnormal && !mic2_abnormal) {
+                            // MIC1异常，MIC2正常，使用MIC2
+                            mono_data[i] = mic2_val;
+                        } else if (!mic1_abnormal && mic2_abnormal) {
+                            // MIC1正常，MIC2异常，使用MIC1
+                            mono_data[i] = mic1_val;
+                        } else if (mic1_abnormal && mic2_abnormal) {
+                            // 都异常，使用能量较小的
+                            mono_data[i] = (mic1_energy < mic2_energy) ? mic1_val : mic2_val;
+                        } else {
+                            // 都正常，取平均值
+                            mono_data[i] = (mic1_val + mic2_val) / 2;
+                        }
+                    }
+                    
+                    data = std::move(mono_data);
+                    //=================================
                 }
                 PushTaskToEncodeQueue(kAudioTaskTypeEncodeToTestingQueue, std::move(data));
                 continue;
