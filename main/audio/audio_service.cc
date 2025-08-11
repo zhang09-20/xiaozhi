@@ -178,6 +178,26 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
                 data[j] = resampled_mic[i];
                 data[j + 1] = resampled_reference[i];
             }
+            //================================
+        } else if (codec_->input_channels() == 3) {
+            // 3通道处理：通道0+1为麦克风，通道2为回声参考
+            auto mic_channel = std::vector<int16_t>(data.size() / 3 * 2);  // 前两个通道
+            auto reference_channel = std::vector<int16_t>(data.size() / 3); // 第三个通道
+            for (size_t i = 0, j = 0; i < data.size() / 3; ++i, j += 3) {
+                mic_channel[i * 2] = data[j];     // 通道0 (MIC1)
+                mic_channel[i * 2 + 1] = data[j + 1]; // 通道1 (MIC2)
+                reference_channel[i] = data[j + 2];   // 通道2 (MIC3) 回声参考
+            }
+            auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
+            auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
+            input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
+            reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
+            data.resize(resampled_mic.size() + resampled_reference.size());
+            for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
+                data[j] = resampled_mic[i];
+                data[j + 1] = resampled_reference[i];
+            }
+            //=================================
         } else {
             auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
             input_resampler_.Process(data.data(), data.size(), resampled.data());
