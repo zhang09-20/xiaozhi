@@ -247,12 +247,12 @@ private:
         // 构建完整的文件路径
         std::string file_path = "/sdcard/music.p3";
         
-        // 检查文件是否存在
-        struct stat st;
-        if (stat(file_path.c_str(), &st) != 0) {
-            ESP_LOGE(TAG, "File not found: %s", file_path.c_str());
-            return false;
-        }
+        // // 检查文件是否存在
+        // struct stat st;
+        // if (stat(file_path.c_str(), &st) != 0) {
+        //     ESP_LOGE(TAG, "File not found: %s", file_path.c_str());
+        //     return false;
+        // }
         
         // 打开文件
         FILE* file = fopen(file_path.c_str(), "rb");
@@ -288,23 +288,36 @@ private:
         if (!audio_service.IsIdle()) {
             ESP_LOGW(TAG, "Audio service is not idle, resetting decoder");
             audio_service.ResetDecoder();
-            vTaskDelay(pdMS_TO_TICKS(100));  // 等待100ms
+            
+            // 等待音频服务变为空闲状态
+            int wait_count = 0;
+            const int max_wait_count = 30; // 最多等待3秒
+            while (!audio_service.IsIdle() && wait_count < max_wait_count) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+                wait_count++;
+            }
+            
+            if (wait_count >= max_wait_count) {
+                ESP_LOGW(TAG, "Audio service did not become idle within timeout, proceeding anyway");
+            } else {
+                ESP_LOGI(TAG, "Audio service became idle after %d ms", wait_count * 100);
+            }
         }
         
-        // 确保音频输出是启用的
-        auto codec = Board::GetInstance().GetAudioCodec();
-        if (codec) {
-            codec->EnableOutput(true);
-            ESP_LOGI(TAG, "Enabled audio output");
-        }
+        // // 确保音频输出是启用的
+        // auto codec = Board::GetInstance().GetAudioCodec();
+        // if (codec) {
+        //     codec->EnableOutput(true);
+        //     ESP_LOGI(TAG, "Enabled audio output");
+        // }
         
         // 通知云端设备正在播放本地音乐，避免云端大模型一直说话
         app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_start\",\"message\":\"Playing local music\"}}");
         app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"local_music_active\"}}");
         ESP_LOGI(TAG, "Notified cloud about local music playback");
         
-        // 设置设备状态为speaking，这样OnIncomingAudio回调才会处理音频
-        app.SetDeviceState(kDeviceStateSpeaking);
+        // // 设置设备状态为speaking，这样OnIncomingAudio回调才会处理音频
+        // app.SetDeviceState(kDeviceStateSpeaking);
         
         // 使用PlaySound函数播放P3数据
         std::string_view sound_data(p3_data.data(), p3_data.size());
@@ -312,24 +325,55 @@ private:
         
         ESP_LOGI(TAG, "Started playing P3 file using PlaySound");
         
-        // 创建监控任务，检测播放完成
+        // 创建监控任务，检测播放完成或被中断
         xTaskCreate([](void* arg) {
             auto& app = Application::GetInstance();
             auto& audio_service = app.GetAudioService();
             
-            // 等待播放完成（音频服务变为空闲状态）
-            while (!audio_service.IsIdle()) {
+            // 等待播放完成（音频服务变为空闲状态）或超时
+            int wait_count = 0;
+            const int max_wait_count = 600; // 最多等待60秒（假设音乐最长60秒）
+            bool playback_finished = false;
+            
+            while (!audio_service.IsIdle() && wait_count < max_wait_count) {
                 vTaskDelay(pdMS_TO_TICKS(100));  // 每100ms检查一次
+                wait_count++;
+                
+                // 检查设备状态，如果被中断则退出
+                if (app.GetDeviceState() != kDeviceStateSpeaking) {
+                    ESP_LOGI(TAG, "Music playback was interrupted, stopping monitor");
+                    playback_finished = true;
+                    break;
+                }
             }
             
-            // 播放完成，通知云端
-            app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}}");
-            app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"ready_for_commands\"}}");
-            ESP_LOGI(TAG, "Auto-notified cloud about local music end");
+            if (wait_count >= max_wait_count) {
+                ESP_LOGW(TAG, "Music playback timeout after %d seconds", max_wait_count / 10);
+            } else if (!playback_finished) {
+                ESP_LOGI(TAG, "Music playback finished normally after %d ms", wait_count * 100);
+            }
             
-            // 恢复设备状态
-            app.SetDeviceState(kDeviceStateIdle);
-            ESP_LOGI(TAG, "Auto-restored device state to idle");
+            // 只有在正常播放完成时才发送结束通知
+            if (!playback_finished) {
+                // 发送应用层协议：通知MCP工具本地音乐结束
+                app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}}");
+                app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"ready_for_commands\"}}");
+                ESP_LOGI(TAG, "Auto-sent application layer protocol: MCP notifications");
+                
+                // 恢复设备状态
+                app.SetDeviceState(kDeviceStateIdle);
+                ESP_LOGI(TAG, "Auto-restored device state to idle");
+            } else {
+                // 如果是被中断的，需要发送两个协议
+                // 发送应用层协议：通知MCP工具本地音乐结束
+                app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_end\",\"message\":\"Local music playback interrupted\"}}");
+                app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"ready_for_commands\"}}");
+                ESP_LOGI(TAG, "Auto-sent application layer protocol: MCP notifications for interruption");
+                
+                // 发送协议层协议：通知云端会话中断
+                app.AbortSpeaking(kAbortReasonNone);
+                ESP_LOGI(TAG, "Auto-sent protocol layer protocol: abort speaking");
+            }
             
             vTaskDelete(NULL);
         }, "music_monitor", 2048, nullptr, 5, nullptr);
@@ -344,14 +388,43 @@ private:
         auto& app = Application::GetInstance();
         auto& audio_service = app.GetAudioService();
         
-        // 通知云端本地音乐播放结束
+        // 检查音频服务是否正在播放
+        if (audio_service.IsIdle()) {
+            ESP_LOGW(TAG, "Audio service is already idle, no need to stop");
+            return true;
+        }
+        
+        // 发送应用层协议：通知MCP工具本地音乐结束
         app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"local_music_end\",\"message\":\"Local music playback finished\"}}");
         app.SendMcpMessage("{\"jsonrpc\":\"2.0\",\"method\":\"notification\",\"params\":{\"type\":\"system\",\"status\":\"ready_for_commands\"}}");
-        ESP_LOGI(TAG, "Notified cloud about local music end");
+        ESP_LOGI(TAG, "Sent application layer protocol: MCP notifications");
         
-        // 清空解码队列
+        // 发送协议层协议：通知云端会话中断
+        app.AbortSpeaking(kAbortReasonNone);
+        ESP_LOGI(TAG, "Sent protocol layer protocol: abort speaking");
+        
+        ESP_LOGI(TAG, "Notified cloud about local music end and session abort");
+        
+        // 等待一小段时间确保通知发送完成
+        vTaskDelay(pdMS_TO_TICKS(50));
+        
+        // 清空解码队列和重置解码器状态
         audio_service.ResetDecoder();
-        ESP_LOGI(TAG, "Cleared decode queue");
+        ESP_LOGI(TAG, "Reset decoder and cleared all audio queues");
+        
+        // 等待音频服务变为空闲状态
+        int wait_count = 0;
+        const int max_wait_count = 50; // 最多等待5秒
+        while (!audio_service.IsIdle() && wait_count < max_wait_count) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            wait_count++;
+        }
+        
+        if (wait_count >= max_wait_count) {
+            ESP_LOGW(TAG, "Audio service did not become idle within timeout");
+        } else {
+            ESP_LOGI(TAG, "Audio service became idle after %d ms", wait_count * 100);
+        }
         
         // 关闭音频输出
         auto codec = Board::GetInstance().GetAudioCodec();
@@ -430,116 +503,7 @@ private:
     }
 
     bool PlayDesLocalMusic(const std::string& file_name) {
-        ESP_LOGI(TAG, "Playing designated local music: %s", file_name.c_str());
-        
-        // 先停止当前播放
-        StopMusic();
-        
-        // 构建完整的文件路径
-        //std::string file_path = "/sdcard/test" + file_name;
-        std::string file_path = "/sdcard/test.wav";
-        
-        // 检查文件是否存在
-        struct stat st;
-        if (stat(file_path.c_str(), &st) != 0) {
-            ESP_LOGE(TAG, "File not found: %s", file_path.c_str());
-            return false;
-        }
-        
-        // 重新启用音频输出
-        auto codec = Board::GetInstance().GetAudioCodec();
-        if (codec) {
-            codec->EnableOutput(true);
-        }
-        
-        // 打开文件
-        FILE* file = fopen(file_path.c_str(), "rb");
-        if (!file) {
-            ESP_LOGE(TAG, "Failed to open file: %s", file_path.c_str());
-            return false;
-        }
-        
-        // 获取文件大小
-        fseek(file, 0, SEEK_END);
-        long file_size = ftell(file);
-        fseek(file, 0, SEEK_SET);
-        
-        ESP_LOGI(TAG, "File size: %ld bytes", file_size);
-        
-        // 检查文件扩展名，处理WAV文件头
-        //std::string file_name = "RECORD.WAV";
-        size_t header_skip = 0;
-        std::string lower_filename = file_name;
-        std::transform(lower_filename.begin(), lower_filename.end(), lower_filename.begin(), ::tolower);
-        
-        if (lower_filename.find(".wav") != std::string::npos) {
-            // WAV文件，跳过44字节的文件头
-            header_skip = 44;
-            ESP_LOGI(TAG, "Detected WAV file, skipping %zu bytes header", header_skip);
-            
-            // 验证WAV文件头
-            char wav_header[12];
-            if (fread(wav_header, 1, 12, file) == 12) {
-                if (strncmp(wav_header, "RIFF", 4) == 0 && strncmp(wav_header + 8, "WAVE", 4) == 0) {
-                    ESP_LOGI(TAG, "Valid WAV file header detected");
-                } else {
-                    ESP_LOGW(TAG, "Invalid WAV file header, treating as raw audio");
-                    header_skip = 0;
-                    fseek(file, 0, SEEK_SET);  // 重新定位到文件开头
-                }
-            } else {
-                ESP_LOGW(TAG, "Failed to read WAV header, treating as raw audio");
-                header_skip = 0;
-                fseek(file, 0, SEEK_SET);
-            }
-        } else if (lower_filename.find(".p3") != std::string::npos) {
-            // P3文件，跳过文件头（如果有的话）
-            // 这里可以根据P3文件格式调整
-            ESP_LOGI(TAG, "Detected P3 file");
-        } else {
-            // 其他格式，按原始音频处理
-            ESP_LOGI(TAG, "Treating as raw audio file");
-        }
-        
-        // 如果跳过了头部，重新定位文件指针
-        if (header_skip > 0) {
-            fseek(file, header_skip, SEEK_SET);
-            ESP_LOGI(TAG, "Skipped %zu bytes header, audio data starts at offset %zu", header_skip, header_skip);
-        }
-        
-        // 读取文件内容并推送到解码队列
-        const size_t buffer_size = 1024;
-        uint8_t buffer[buffer_size];
-        size_t bytes_read;
-        
-        while ((bytes_read = fread(buffer, 1, buffer_size, file)) > 0) {
-            // 创建音频流包
-            auto packet = std::make_unique<AudioStreamPacket>();
-            packet->sample_rate = 16000;  // 假设16kHz采样率
-            packet->frame_duration = 60;   // 60ms帧长度
-            packet->payload.resize(bytes_read);
-            memcpy(packet->payload.data(), buffer, bytes_read);
-            
-            // 推送到音频解码队列
-            auto& app = Application::GetInstance();
-            bool success = app.GetAudioService().PushPacketToDecodeQueue(std::move(packet), false);
-            
-            if (!success) {
-                // 队列满了，等待一下再继续
-                ESP_LOGW(TAG, "Decode queue is full, waiting...");
-                vTaskDelay(pdMS_TO_TICKS(50));  // 等待50ms
-                continue;  // 重新尝试推送当前数据包
-            }
-            
-            ESP_LOGI(TAG, "Pushed %zu bytes to decode queue", bytes_read);
-            
-            // 添加适当延迟，控制推送速度
-            // 1024字节在16kHz采样率下大约对应32ms的音频
-            vTaskDelay(pdMS_TO_TICKS(30));  // 延迟30ms
-        }
-        
-        fclose(file);
-        ESP_LOGI(TAG, "Finished playing designated music: %s", file_name.c_str());
+       
         return true;
     }
 
