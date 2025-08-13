@@ -26,6 +26,8 @@
 
 
 // *******************************************************
+//#include <dirent.h>
+
 #include <string.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
@@ -86,6 +88,7 @@ LV_FONT_DECLARE(font_awesome_14_1);
 class MyWifiBoardLCD : public WifiBoard {
 private:
 
+
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
 
@@ -101,22 +104,55 @@ private:
 
 
     // ********************************************************
+    // 音乐列表
+    std::vector<std::string> music_list_;
+    int current_music_index_ = -1;
+
+    void ClearMusicList(){
+        music_list_.clear();
+        current_music_index_ = -1;
+    }
+
+    void LoadMusicFromDirectory(const char* directory) {
+        DIR* dir = opendir(directory);
+        if (!dir){
+            ESP_LOGI(TAG,"Failed to open directory: %s", directory)
+        }
+
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr){
+            music_list_.push_back(entry->d_name);
+        }
+
+        closedir(dir);
+        ESP_LOGI(TAG,"Loaded %zu music files from %s", music_list_.size(), directory);
+
+        // 排序音乐列表
+        for (const auto& file : music_list_){
+            ESP_LOGI(TAG,"  %s", file.c_str());
+        }
+    }
+
+    // 初始化音乐列表
+    void InitializeMusicList() {
+        ESP_LOGI(TAG, "Initializing music list...");
+        
+        // 清空现有列表
+        ClearMusicList();
+        
+        // 从SD卡加载音乐文件
+        LoadMusicFromDirectory("/sdcard/music");
+
+        if (music_list_.empty()) {
+            ESP_LOGW(TAG, "No music files found in any storage");
+        } else {
+            ESP_LOGI(TAG, "Music list initialized with %zu files", music_list_.size());
+
+        }
+    }
+
+
     
-    // void print_sdcard_info(const sdmmc_card_t* card) {
-    //     if (!card) {
-    //         ESP_LOGE("SD", "Card pointer is NULL");
-    //         return;
-    //     }
-
-    //     uint64_t capacity_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
-    //     ESP_LOGI("SD", "Name: %s", card->cid.name);
-    //     ESP_LOGI("SD", "Type: %s", (card->ocr & SD_OCR_SDHC_CAP) ? "SDHC" : "SDSC");
-    //     ESP_LOGI("SD", "Capacity: %" PRIu64 " bytes (%.2f MB)", capacity_bytes, capacity_bytes / (1024.0 * 1024.0));
-    //     ESP_LOGI("SD", "CSD Version: %d, Sector size: %d, Capacity: %" PRIu64, 
-    //             card->csd.csd_ver, card->csd.sector_size, (uint64_t)card->csd.capacity);
-    //     ESP_LOGI("SD", "Bus Width: %d-bit", (card->host->flags & SDMMC_HOST_FLAG_4BIT) ? 4 : 1);
-    // }
-
     void InitializeSDCard(){
         esp_err_t ret;
         sdmmc_card_t* card;
@@ -236,23 +272,30 @@ private:
         // 8、打印卡属性
         // Card has been initialized, print its properties
         sdmmc_card_print_info(stdout, card);
-        //print_sdcard_info(card);
     }
 
 
 
     bool PlayLocalMusic(){
-        ESP_LOGI(TAG, "Playing local P3 music");
+        ESP_LOGI(TAG, "Playing local music");
         
-        // 构建完整的文件路径
-        std::string file_path = "/sdcard/music.p3";
+        // 检查音乐列表是否为空
+        if (music_list_.empty()) {
+            ESP_LOGE(TAG, "No music files available");
+            return false;
+        }
         
-        // // 检查文件是否存在
-        // struct stat st;
-        // if (stat(file_path.c_str(), &st) != 0) {
-        //     ESP_LOGE(TAG, "File not found: %s", file_path.c_str());
-        //     return false;
-        // }
+        // 首位连接循环播放
+        if (current_music_index_ < 0) {
+            current_music_index_ = music_list_.size() - 1;
+        }else if(current_music_index_ >= music_list_.size()){
+            current_music_index_ = 0;
+        }
+        
+        // 获取当前要播放的音乐文件
+        std::string file_path = music_list_[current_music_index_];
+        ESP_LOGI(TAG, "Playing music: %s (%d/%zu)", file_path.c_str(), current_music_index_ + 1, music_list_.size());
+        
         
         // 打开文件
         FILE* file = fopen(file_path.c_str(), "rb");
@@ -517,25 +560,21 @@ private:
     void CreateCustomTool() {
         auto& mcp_server = McpServer::GetInstance();
         
+        //"打印一行预设好的用于测试的，提示信息\n"
         mcp_server.AddTool("self.print_info",
-            //"打印一行预设好的用于测试的，提示信息\n"
             "打印",
             PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
                 return test_print();
             });
+
         // 添加播放音乐工具
         mcp_server.AddTool("self.audio.play_local_music",
             "播放本地音乐",
-            // "Use this tool when the user wants to play music from the local SD card.\n"
-            // "Args:\n"
-            // "  `file_name`: The name of the music file to play (e.g. 'song1.mp3', 'music.wav')",
             PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
-                //auto file_name = properties["file_name"].value<std::string>();
                 return PlayLocalMusic();
             });
-
         // 添加停止播放音乐工具
         mcp_server.AddTool("self.audio.stop_music",
             "结束本地音乐",
@@ -543,34 +582,33 @@ private:
             [this](const PropertyList& properties) -> ReturnValue {
                 return StopMusic();
             });
+        // 添加播放下一首音乐工具
+        mcp_server.AddTool("self.audio.play_next",
+            "下一首，换一首",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                return SwitchMusic("next");
+            });
+        // 添加播放上一首音乐工具
+        mcp_server.AddTool("self.audio.play_previous",
+            "上一首",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                return SwitchMusic("previous");
+            });
 
-        // // 添加切换音乐工具
-        // mcp_server.AddTool("self.audio.switch_music",
-        //     "切换到下一个或上一个音乐文件。\n"
-        //     "Use this tool when the user wants to play the next or previous song.\n"
-        //     "Args:\n"
-        //     "  `direction`: 'next' to play next song, 'previous' to play previous song",
-        //     PropertyList({
-        //         Property("direction", kPropertyTypeString)
-        //     }),
-        //     [this](const PropertyList& properties) -> ReturnValue {
-        //         auto direction = properties["direction"].value<std::string>();
-        //         return SwitchMusic(direction);
-        //     });
-
-        // // 添加播放指定音乐工具
-        // mcp_server.AddTool("self.audio.play_local_des_music",
-        //     "播放SD卡中的音乐文件。支持播放指定文件名的音乐。\n"
-        //     "Use this tool when the user wants to play music from the local SD card.\n"
-        //     "Args:\n"
-        //     "  `file_name`: The name of the music file to play (e.g. 'song1.mp3', 'music.wav')",
-        //     PropertyList({
-        //         Property("file_name", kPropertyTypeString)
-        //     }),
-        //     [this](const PropertyList& properties) -> ReturnValue {
-        //         auto file_name = properties["file_name"].value<std::string>();
-        //         return PlayDesLocalMusic(file_name);
-        //     });
+        // 添加获取音乐列表信息工具
+        mcp_server.AddTool("self.audio.get_music_info",
+            "获取音乐列表信息",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                std::string info = "Music List Info:\n";
+                info += "Total files: " + std::to_string(GetMusicCount()) + "\n";
+                info += "Current index: " + std::to_string(GetCurrentIndex()) + "\n";
+                info += "Current file: " + GetCurrentMusic() + "\n";
+                ESP_LOGI(TAG, "%s", info.c_str());
+                return true;
+            });
     }
 
 
@@ -852,7 +890,7 @@ private:
 
 public:
 
-    //======================================================================
+    // //======================================================================
     // // 验证与ES8311的通信，读取寄存器的值
     // bool verify_es8311_communication() {
     //     ESP_LOGI(TAG, "验证与ES8311的通信...");
@@ -860,7 +898,7 @@ public:
     //     // 创建ES8311设备句柄
     //     i2c_device_config_t es8311_dev_cfg = {
     //         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-    //         .device_address = 0x18,
+    //         .device_address = 0x41,
     //         .scl_speed_hz = 100000,  // 100kHz
     //     };
         
@@ -874,7 +912,7 @@ public:
     //     // 读取几个寄存器
     //     //const uint8_t regs_to_read[] = {0x00, 0x01, 0x02, 0xFD};
         
-    //     for (size_t i = 0x00; i <= 0x45; i++) {
+    //     for (size_t i = 0x00; i <= 0x4C; i++) {
     //         uint8_t reg_addr = i;
     //         uint8_t reg_val = 0;            
     //         ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
@@ -887,17 +925,17 @@ public:
     //             printf("\n");
     //         }
     //     }
-    //     printf("\n");
-    //     for (size_t i = 0xFA; i <= 0xff; i++) {
-    //         uint8_t reg_addr = i;
-    //         uint8_t reg_val = 0;            
-    //         ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
-    //         if (ret == ESP_OK) {
-    //             ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
-    //         } else {
-    //             ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
-    //         }
-    //     }
+    //     // printf("\n");
+    //     // for (size_t i = 0x7A; i <= 0x7F; i++) {
+    //     //     uint8_t reg_addr = i;
+    //     //     uint8_t reg_val = 0;            
+    //     //     ret = i2c_master_transmit_receive(es8311_dev, &reg_addr, 1, &reg_val, 1, 1000);            
+    //     //     if (ret == ESP_OK) {
+    //     //         ESP_LOGI(TAG, "读取寄存器0x%02X成功: 0x%02X", reg_addr, reg_val);
+    //     //     } else {
+    //     //         ESP_LOGE(TAG, "读取寄存器0x%02X失败: %s", reg_addr, esp_err_to_name(ret));
+    //     //     }
+    //     // }
    
     //     // 清理设备句柄
     //     i2c_master_bus_rm_device(es8311_dev);
@@ -911,7 +949,7 @@ public:
     //         return false;
     //     }
     // }
-    //=======================================================================================
+    // //=======================================================================================
 
 
     //面包板 wifi 板，lcd板，构造函数
@@ -940,6 +978,9 @@ public:
         InitializeSDCard();
 
         CreateCustomTool();
+
+        // 初始化音乐列表
+        InitializeMusicList();
 
         //verify_es8311_communication();
         // ****************************************************************
@@ -983,10 +1024,10 @@ public:
             true
         );
 
-        // if (!test_flag) {
-        //     verify_es8311_communication();
-        //     test_flag ++;
-        // }
+        if (!test_flag) {
+            verify_es8311_communication();
+            test_flag ++;
+        }
         
         return &audio_codec;
     }
@@ -1018,6 +1059,6 @@ public:
 
 
 
-uint8_t MyWifiBoardLCD::test_flag = 1;
+uint8_t MyWifiBoardLCD::test_flag = 0;
 
 DECLARE_BOARD(MyWifiBoardLCD);

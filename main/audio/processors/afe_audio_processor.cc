@@ -27,6 +27,8 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
         input_format.push_back('R');
     }
 
+    ESP_LOGI(TAG, "input_format: %s", input_format.c_str());
+
     srmodel_list_t *models = esp_srmodel_init("model");
     char* ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
     char* vad_model_name = esp_srmodel_filter(models, ESP_VADN_PREFIX, NULL);
